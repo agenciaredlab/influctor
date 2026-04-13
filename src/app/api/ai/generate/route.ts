@@ -101,6 +101,17 @@ Proporciona:
 6. Nichos complementarios para expansión
 
 Incluye ejemplos concretos y tendencias actuales.`,
+
+    viral_tips: `Analiza este contenido y da 5 sugerencias concretas para maximizar su potencial viral:
+
+${topic}
+
+Para cada sugerencia:
+- Qué cambiar específicamente
+- Por qué aumenta el potencial viral
+- Ejemplo concreto de cómo aplicarlo
+
+Sé directo, práctico y específico para la plataforma ${platform || 'indicada'}.`,
   }
 
   return prompts[type] || `Ayúdame con esto: ${topic}`

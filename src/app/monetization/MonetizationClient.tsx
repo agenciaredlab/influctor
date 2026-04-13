@@ -3,8 +3,7 @@
 import { useState, useMemo } from 'react'
 import {
   DollarSign, TrendingUp, Users, Star, ChevronRight, Info,
-  ArrowRight, Check, Lightbulb, Zap, Calculator, BarChart2,
-  BookOpen, Sparkles, Target
+  Check, Zap, Calculator, BarChart2, Target
 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -541,9 +540,3 @@ export default function MonetizationClient({ data }: MonetizationClientProps) {
     </div>
   )
 }
-
-// re-export for page.tsx
-export { type MonetizationClientProps }
-
-// data prop access fix
-const data = { thisMonthIncome: 0 } // placeholder, actual data comes from props
