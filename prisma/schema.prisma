@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String         @id @default(cuid())
+  email       String         @unique
+  name        String
+  avatar      String?
+  bio         String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  goals       Goal[]
+  campaigns   Campaign[]
+  incomes     Income[]
+  metrics     SocialMetric[]
+  aiUsages    AiUsage[]
+}
+
+model Goal {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  category     String    // followers | engagement | income | content | views | brand_deals
+  platform     String?   // instagram | tiktok | youtube | twitter | linkedin | all
+  targetValue  Float
+  currentValue Float     @default(0)
+  unit         String    @default("") // seguidores, %, $, posts, views
+  deadline     DateTime?
+  status       String    @default("active") // active | completed | paused | failed
+  priority     String    @default("medium") // low | medium | high
+  score        Float?    // 0-100 evaluation score
+  notes        String?
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Campaign {
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  objective    String    // awareness | engagement | conversion | growth | monetization
+  platform     String    // instagram | tiktok | youtube | twitter | linkedin | multi
+  budget       Float     @default(0)
+  spent        Float     @default(0)
+  startDate    DateTime
+  endDate      DateTime?
+  status       String    @default("draft") // draft | active | paused | completed | cancelled
+  impressions  Int       @default(0)
+  reach        Int       @default(0)
+  engagement   Int       @default(0)
+  conversions  Int       @default(0)
+  clicks       Int       @default(0)
+  content      String?   // JSON array of content pieces
+  tags         String?   // comma-separated
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Income {
+  id          String   @id @default(cuid())
+  amount      Float
+  currency    String   @default("USD")
+  source      String   // brand_deal | affiliate | adsense | merch | tips | subscription | consulting | other
+  platform    String?
+  description String?
+  date        DateTime
+  invoiced    Boolean  @default(false)
+  paid        Boolean  @default(true)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SocialMetric {
+  id          String   @id @default(cuid())
+  platform    String   // instagram | tiktok | youtube | twitter | linkedin
+  followers   Int      @default(0)
+  following   Int      @default(0)
+  posts       Int      @default(0)
+  engagement  Float    @default(0) // percentage
+  reach       Int      @default(0)
+  impressions Int      @default(0)
+  views       Int      @default(0)
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  shares      Int      @default(0)
+  date        DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, date])
+}
+
+model AiUsage {
+  id       String   @id @default(cuid())
+  type     String   // caption | hashtags | bio | content_ideas | strategy | analysis
+  prompt   String
+  result   String
+  platform String?
+  saved    Boolean  @default(false)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
