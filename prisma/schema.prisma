@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -16,6 +13,8 @@ model User {
   name        String
   avatar      String?
   bio         String?
+  niche       String?
+  tier        String         @default("creator") // creator | business | agency
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   goals       Goal[]
@@ -23,21 +22,25 @@ model User {
   incomes     Income[]
   metrics     SocialMetric[]
   aiUsages    AiUsage[]
+  brandDeals  BrandDeal[]
+  contentPosts ContentPost[]
+  competitors Competitor[]
+  playbookProgress PlaybookProgress[]
 }
 
 model Goal {
   id           String    @id @default(cuid())
   title        String
   description  String?
-  category     String    // followers | engagement | income | content | views | brand_deals
-  platform     String?   // instagram | tiktok | youtube | twitter | linkedin | all
+  category     String
+  platform     String?
   targetValue  Float
   currentValue Float     @default(0)
-  unit         String    @default("") // seguidores, %, $, posts, views
+  unit         String    @default("")
   deadline     DateTime?
-  status       String    @default("active") // active | completed | paused | failed
-  priority     String    @default("medium") // low | medium | high
-  score        Float?    // 0-100 evaluation score
+  status       String    @default("active")
+  priority     String    @default("medium")
+  score        Float?
   notes        String?
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -49,20 +52,20 @@ model Campaign {
   id           String    @id @default(cuid())
   name         String
   description  String?
-  objective    String    // awareness | engagement | conversion | growth | monetization
-  platform     String    // instagram | tiktok | youtube | twitter | linkedin | multi
+  objective    String
+  platform     String
   budget       Float     @default(0)
   spent        Float     @default(0)
   startDate    DateTime
   endDate      DateTime?
-  status       String    @default("draft") // draft | active | paused | completed | cancelled
+  status       String    @default("draft")
   impressions  Int       @default(0)
   reach        Int       @default(0)
   engagement   Int       @default(0)
   conversions  Int       @default(0)
   clicks       Int       @default(0)
-  content      String?   // JSON array of content pieces
-  tags         String?   // comma-separated
+  content      String?
+  tags         String?
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime  @default(now())
@@ -73,7 +76,7 @@ model Income {
   id          String   @id @default(cuid())
   amount      Float
   currency    String   @default("USD")
-  source      String   // brand_deal | affiliate | adsense | merch | tips | subscription | consulting | other
+  source      String
   platform    String?
   description String?
   date        DateTime
@@ -87,11 +90,11 @@ model Income {
 
 model SocialMetric {
   id          String   @id @default(cuid())
-  platform    String   // instagram | tiktok | youtube | twitter | linkedin
+  platform    String
   followers   Int      @default(0)
   following   Int      @default(0)
   posts       Int      @default(0)
-  engagement  Float    @default(0) // percentage
+  engagement  Float    @default(0)
   reach       Int      @default(0)
   impressions Int      @default(0)
   views       Int      @default(0)
@@ -106,13 +109,98 @@ model SocialMetric {
 }
 
 model AiUsage {
-  id       String   @id @default(cuid())
-  type     String   // caption | hashtags | bio | content_ideas | strategy | analysis
-  prompt   String
-  result   String
-  platform String?
-  saved    Boolean  @default(false)
-  userId   String
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  type      String
+  prompt    String
+  result    String
+  platform  String?
+  saved     Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+}
+
+// ========================
+// NEW MODELS
+// ========================
+
+model BrandDeal {
+  id            String    @id @default(cuid())
+  brand         String
+  contact       String?
+  email         String?
+  phone         String?
+  platform      String    // instagram | tiktok | youtube | multi
+  type          String    // sponsored_post | video | story | reel | series | ambassador | affiliate | ugc
+  stage         String    @default("outreach") // outreach | negotiation | contract | active | delivered | completed | declined
+  value         Float     @default(0)
+  currency      String    @default("USD")
+  commissionPct Float?    // for affiliate deals
+  dueDate       DateTime?
+  description   String?
+  deliverables  String?   // JSON: ["1 Reel", "3 Stories", "1 Post"]
+  notes         String?
+  tags          String?
+  logo          String?   // brand logo URL
+  niche         String?
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ContentPost {
+  id          String    @id @default(cuid())
+  title       String
+  caption     String?
+  platform    String    // instagram | tiktok | youtube | twitter | linkedin
+  type        String    // reel | post | story | video | thread | carousel | short
+  status      String    @default("idea") // idea | draft | ready | scheduled | published | archived
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  hashtags    String?
+  notes       String?
+  hookText    String?   // first line / hook
+  viralScore  Float?    // 0-100
+  performance String?   // JSON: { likes, comments, shares, views, reach }
+  campaignId  String?
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Competitor {
+  id            String   @id @default(cuid())
+  name          String
+  handle        String
+  platform      String
+  profileUrl    String?
+  followers     Int      @default(0)
+  engagement    Float    @default(0)
+  avgLikes      Int      @default(0)
+  avgComments   Int      @default(0)
+  postsPerWeek  Float    @default(0)
+  niche         String?
+  contentTypes  String?  // comma-separated: reels,carousels,stories
+  strengths     String?
+  weaknesses    String?
+  notes         String?
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PlaybookProgress {
+  id          String   @id @default(cuid())
+  playbookId  String   // e.g. "0-1k", "1k-10k", "monetize"
+  checklistId String   // specific item id
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, playbookId, checklistId])
 }

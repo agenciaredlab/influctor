@@ -11,7 +11,7 @@ export default function DashboardLayout({ children, title, description, actions 
   return (
     <div className="min-h-screen bg-[#07070f]">
       <Sidebar />
-      <main className="pl-64">
+      <main className="pl-60">
         {/* Top header */}
         <header className="sticky top-0 z-30 bg-[#07070f]/90 backdrop-blur-md border-b border-[#1a1a2e] px-8 py-4">
           <div className="flex items-center justify-between">
