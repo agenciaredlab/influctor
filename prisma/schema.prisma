@@ -26,6 +26,7 @@ model User {
   contentPosts ContentPost[]
   competitors Competitor[]
   playbookProgress PlaybookProgress[]
+  socialAccounts SocialAccount[]
 }
 
 model Goal {
@@ -203,4 +204,87 @@ model PlaybookProgress {
   createdAt   DateTime @default(now())
 
   @@unique([userId, playbookId, checklistId])
+}
+
+// ========================
+// SOCIAL OAUTH ACCOUNTS
+// ========================
+
+model SocialAccount {
+  id               String   @id @default(cuid())
+  platform         String   // instagram | tiktok | youtube | linkedin | twitter
+  platformUserId   String   // the ID on that platform
+  username         String
+  displayName      String?
+  profilePicture   String?
+  accessToken      String   // long-lived token
+  refreshToken     String?
+  tokenExpiresAt   DateTime?
+  scopes           String?  // comma-separated granted scopes
+  isActive         Boolean  @default(true)
+  followersCount   Int      @default(0)
+  followingCount   Int      @default(0)
+  mediaCount       Int      @default(0)
+  biography        String?
+  website          String?
+  accountType      String?  // PERSONAL | BUSINESS | CREATOR
+  lastSyncAt       DateTime?
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots        SocialSnapshot[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, platform, platformUserId])
+}
+
+model SocialSnapshot {
+  id              String   @id @default(cuid())
+  date            DateTime @default(now())
+  platform        String
+  followers       Int      @default(0)
+  following       Int      @default(0)
+  mediaCount      Int      @default(0)
+  reach           Int      @default(0)
+  impressions     Int      @default(0)
+  profileViews    Int      @default(0)
+  websiteClicks   Int      @default(0)
+  engagement      Float    @default(0)
+  newFollowers    Int      @default(0)
+  avgLikes        Float    @default(0)
+  avgComments     Float    @default(0)
+  topPostId       String?
+  topPostLikes    Int      @default(0)
+  rawData         String?  // JSON with full API response
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  userId          String
+  createdAt       DateTime @default(now())
+
+  @@index([userId, platform, date])
+  @@unique([socialAccountId, date])
+}
+
+model InstagramMedia {
+  id               String   @id @default(cuid())
+  igMediaId        String   @unique // Instagram media ID
+  mediaType        String   // IMAGE | VIDEO | CAROUSEL_ALBUM | REEL
+  caption          String?
+  mediaUrl         String?
+  thumbnailUrl     String?
+  permalink        String?
+  timestamp        DateTime
+  likeCount        Int      @default(0)
+  commentsCount    Int      @default(0)
+  impressions      Int      @default(0)
+  reach            Int      @default(0)
+  saved            Int      @default(0)
+  videoViews       Int      @default(0)
+  engagement       Float    @default(0)
+  socialAccountId  String
+  userId           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, timestamp])
 }
