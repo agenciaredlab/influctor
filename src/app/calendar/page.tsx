@@ -30,21 +30,26 @@ async function getPosts() {
     })
   }
 
-  const posts = await prisma.contentPost.findMany({
-    where: { userId: user.id },
-    orderBy: { scheduledAt: 'asc' },
-  })
-  return { user, posts }
+  const [posts, igAccount] = await Promise.all([
+    prisma.contentPost.findMany({
+      where: { userId: user.id },
+      orderBy: { scheduledAt: 'asc' },
+    }),
+    prisma.socialAccount.findFirst({
+      where: { userId: user.id, platform: 'instagram', isActive: true },
+    }),
+  ])
+  return { user, posts, igConnected: !!igAccount }
 }
 
 export default async function CalendarPage() {
-  const { user, posts } = await getPosts()
+  const { user, posts, igConnected } = await getPosts()
   return (
     <DashboardLayout
       title="Calendario de Contenido"
-      description="Planifica y organiza todo tu contenido en un solo lugar"
+      description={igConnected ? 'Instagram conectado — puedes publicar directamente' : 'Planifica y organiza todo tu contenido en un solo lugar'}
     >
-      <CalendarClient posts={posts} userId={user.id} />
+      <CalendarClient posts={posts} userId={user.id} igConnected={igConnected} />
     </DashboardLayout>
   )
 }

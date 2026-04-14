@@ -162,8 +162,13 @@ model ContentPost {
   hashtags    String?
   notes       String?
   hookText    String?   // first line / hook
+  imageUrl    String?   // public URL of the image/video to publish
   viralScore  Float?    // 0-100
   performance String?   // JSON: { likes, comments, shares, views, reach }
+  // Publishing fields
+  publishedMediaId  String?   // Instagram media ID after publishing
+  publishError      String?   // last error if publishing failed
+  publishAttempts   Int       @default(0)
   campaignId  String?
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)

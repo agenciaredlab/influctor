@@ -7,7 +7,7 @@ import { z } from 'zod'
 import {
   CalendarDays, Plus, ChevronLeft, ChevronRight, Flame,
   Edit2, Trash2, CheckCircle2, Clock, AlertCircle, Lightbulb,
-  BarChart2, Grid3X3, List
+  BarChart2, Grid3X3, List, Send, ExternalLink, ImageIcon, RefreshCw
 } from 'lucide-react'
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
@@ -30,6 +30,7 @@ const postSchema = z.object({
   caption: z.string().optional(),
   hashtags: z.string().optional(),
   hookText: z.string().optional(),
+  imageUrl: z.string().url('Debe ser una URL válida').optional().or(z.literal('')),
   notes: z.string().optional(),
 })
 
@@ -66,9 +67,10 @@ const CONTENT_TYPES = [
 interface CalendarClientProps {
   posts: any[]
   userId: string
+  igConnected?: boolean
 }
 
-export default function CalendarClient({ posts: initialPosts, userId }: CalendarClientProps) {
+export default function CalendarClient({ posts: initialPosts, userId, igConnected = false }: CalendarClientProps) {
   const [posts, setPosts] = useState(initialPosts)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -76,6 +78,8 @@ export default function CalendarClient({ posts: initialPosts, userId }: Calendar
   const [editPost, setEditPost] = useState<any>(null)
   const [deletePost, setDeletePost] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [publishingId, setPublishingId] = useState<string | null>(null)
+  const [publishResult, setPublishResult] = useState<{ postId: string; success: boolean; message: string } | null>(null)
   const [viewMode, setViewMode] = useState<'month' | 'list'>('month')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterPlatform, setFilterPlatform] = useState('all')
@@ -113,9 +117,33 @@ export default function CalendarClient({ posts: initialPosts, userId }: Calendar
       title: post.title, platform: post.platform, type: post.type, status: post.status,
       scheduledAt: post.scheduledAt ? format(new Date(post.scheduledAt), "yyyy-MM-dd'T'HH:mm") : '',
       caption: post.caption || '', hashtags: post.hashtags || '',
-      hookText: post.hookText || '', notes: post.notes || '',
+      hookText: post.hookText || '', imageUrl: post.imageUrl || '',
+      notes: post.notes || '',
     })
     setShowModal(true)
+  }
+
+  const handlePublish = async (postId: string) => {
+    setPublishingId(postId)
+    setPublishResult(null)
+    try {
+      const res = await fetch('/api/social/instagram/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'published', publishedAt: new Date().toISOString(), publishedMediaId: data.mediaId } : p))
+        setPublishResult({ postId, success: true, message: `¡Publicado en Instagram! Ver: ${data.permalink}` })
+      } else {
+        setPublishResult({ postId, success: false, message: data.error || 'Error al publicar' })
+      }
+    } catch (e: any) {
+      setPublishResult({ postId, success: false, message: e.message })
+    } finally {
+      setPublishingId(null)
+    }
   }
 
   const onSubmit = async (data: PostFormData) => {
@@ -123,9 +151,10 @@ export default function CalendarClient({ posts: initialPosts, userId }: Calendar
     try {
       const method = editPost ? 'PUT' : 'POST'
       const url = editPost ? `/api/content/${editPost.id}` : '/api/content'
+      const payload = { ...data, userId, imageUrl: data.imageUrl || null }
       const res = await fetch(url, {
         method, headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, userId }),
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
         const saved = await res.json()
@@ -159,6 +188,20 @@ export default function CalendarClient({ posts: initialPosts, userId }: Calendar
 
   return (
     <>
+      {/* Publish result banner */}
+      {publishResult && (
+        <div className={cn(
+          'flex items-start gap-3 p-4 rounded-xl border mb-4 text-sm',
+          publishResult.success
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+            : 'bg-red-500/10 border-red-500/20 text-red-400'
+        )}>
+          {publishResult.success ? <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" /> : <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />}
+          <span className="flex-1">{publishResult.message}</span>
+          <button onClick={() => setPublishResult(null)} className="opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
@@ -346,10 +389,48 @@ export default function CalendarClient({ posts: initialPosts, userId }: Calendar
                       {format(new Date(post.scheduledAt || post.publishedAt), "d MMM yyyy 'a las' HH:mm", { locale: es })}
                     </div>
                   )}
+                  {post.publishError && (
+                    <div className="text-[10px] text-red-400 bg-red-500/10 px-2 py-1 rounded mt-2 flex items-center gap-1">
+                      <AlertCircle size={9} /> {post.publishError}
+                    </div>
+                  )}
+                  {post.publishedMediaId && (
+                    <div className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+                      <CheckCircle2 size={9} /> Publicado en Instagram
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 mt-3 pt-2 border-t border-[#1e1e35]">
                     <button onClick={() => openEdit(post)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors">
                       <Edit2 size={11} /> Editar
                     </button>
+                    {igConnected && post.platform === 'instagram' && post.status !== 'published' && post.imageUrl && (
+                      <button
+                        onClick={() => handlePublish(post.id)}
+                        disabled={publishingId === post.id}
+                        className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300 disabled:opacity-50 transition-colors"
+                        title="Publicar ahora en Instagram"
+                      >
+                        {publishingId === post.id
+                          ? <><RefreshCw size={11} className="animate-spin" /> Publicando...</>
+                          : <><Send size={11} /> Publicar</>
+                        }
+                      </button>
+                    )}
+                    {igConnected && post.platform === 'instagram' && post.status !== 'published' && !post.imageUrl && (
+                      <span className="text-[10px] text-gray-600 flex items-center gap-1" title="Agrega una URL de imagen para publicar">
+                        <ImageIcon size={9} /> Sin imagen
+                      </span>
+                    )}
+                    {post.publishedMediaId && (
+                      <a
+                        href={`https://www.instagram.com/p/${post.publishedMediaId}/`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-violet-400 transition-colors"
+                      >
+                        <ExternalLink size={11} /> Ver en IG
+                      </a>
+                    )}
                     <button onClick={() => setDeletePost(post)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors ml-auto">
                       <Trash2 size={11} />
                     </button>
@@ -378,6 +459,17 @@ export default function CalendarClient({ posts: initialPosts, userId }: Calendar
           <Input label="Hook (primera frase clave)" placeholder="Lo que nadie te dice sobre..." {...register('hookText')} />
           <Textarea label="Caption / Guión" placeholder="El contenido principal del post..." rows={3} {...register('caption')} />
           <Input label="Hashtags" placeholder="#marketing #redessociales #tips" {...register('hashtags')} />
+          <div>
+            <Input
+              label="URL de imagen o video (para publicar en Instagram)"
+              placeholder="https://mi-cdn.com/imagen.jpg"
+              {...register('imageUrl')}
+              error={errors.imageUrl?.message}
+            />
+            <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+              <ImageIcon size={9} /> La imagen debe ser pública y accesible. Formatos: JPG, PNG, MP4.
+            </p>
+          </div>
           <Textarea label="Notas" placeholder="Ideas, referencias, recordatorios..." rows={2} {...register('notes')} />
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowModal(false)}>Cancelar</Button>

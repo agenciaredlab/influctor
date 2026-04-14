@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const data = await req.json()
-  const { title, platform, type, status, scheduledAt, caption, hashtags, hookText, notes } = data
+  const { title, platform, type, status, scheduledAt, caption, hashtags, hookText, imageUrl, notes } = data
 
   const post = await prisma.contentPost.update({
     where: { id: params.id },
@@ -11,7 +11,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       title, platform, type, status,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       caption: caption || null, hashtags: hashtags || null,
-      hookText: hookText || null, notes: notes || null,
+      hookText: hookText || null, imageUrl: imageUrl || null,
+      notes: notes || null,
     },
   })
   return NextResponse.json(post)

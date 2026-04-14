@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const data = await req.json()
-  const { userId, title, platform, type, status, scheduledAt, caption, hashtags, hookText, notes } = data
+  const { userId, title, platform, type, status, scheduledAt, caption, hashtags, hookText, imageUrl, notes } = data
 
   if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
 
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
       userId: user.id, title, platform, type, status: status || 'idea',
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       caption: caption || null, hashtags: hashtags || null,
-      hookText: hookText || null, notes: notes || null,
+      hookText: hookText || null, imageUrl: imageUrl || null,
+      notes: notes || null,
     },
   })
   return NextResponse.json(post, { status: 201 })

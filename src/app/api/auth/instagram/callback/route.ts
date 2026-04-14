@@ -168,7 +168,7 @@ export async function GET(req: NextRequest) {
         accountType: profile.account_type || null,
         isActive: true,
         lastSyncAt: new Date(),
-        scopes: 'instagram_basic,instagram_manage_insights,pages_show_list',
+        scopes: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list',
       },
       create: {
         userId: user.id,
@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
         accountType: profile.account_type || null,
         isActive: true,
         lastSyncAt: new Date(),
-        scopes: 'instagram_basic,instagram_manage_insights,pages_show_list',
+        scopes: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list',
       },
     })
 

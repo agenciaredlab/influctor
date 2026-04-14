@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const SCOPES = [
   'instagram_basic',
   'instagram_manage_insights',
+  'instagram_content_publish', // needed to publish posts/reels/stories
   'pages_show_list',
   'pages_read_engagement',
 ].join(',')
