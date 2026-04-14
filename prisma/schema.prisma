@@ -35,6 +35,7 @@ model User {
   playbookProgress PlaybookProgress[]
   socialAccounts SocialAccount[]
   subscription Subscription?
+  marketplaceApplications MarketplaceApplication[]
 }
 
 model Subscription {
@@ -319,4 +320,50 @@ model InstagramMedia {
   updatedAt        DateTime @updatedAt
 
   @@index([userId, timestamp])
+}
+
+// ========================
+// MARKETPLACE
+// ========================
+
+model MarketplaceListing {
+  id           String   @id @default(cuid())
+  title        String
+  brandName    String
+  brandLogo    String?
+  budget       Float    @default(0)
+  budgetType   String   @default("fixed")  // fixed | range | negotiable
+  budgetMax    Float?
+  currency     String   @default("USD")
+  type         String   // sponsored_post | video | reel | story | ambassador | ugc | affiliate | series
+  platforms    String   // comma-separated: instagram,tiktok,youtube
+  niche        String?
+  description  String
+  deliverables String?  // JSON array string
+  deadline     DateTime?
+  requirements String?  // follower min, engagement min, etc.
+  location     String?  // "Global" | "España" | "México" ...
+  status       String   @default("open") // open | paused | filled | closed
+  featured     Boolean  @default(false)
+  applicantsCount Int   @default(0)
+  postedById   String?  // User who posted (Pro users can post)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  applications MarketplaceApplication[]
+}
+
+model MarketplaceApplication {
+  id           String   @id @default(cuid())
+  message      String
+  proposedRate Float?
+  portfolio    String?  // URLs comma-separated
+  status       String   @default("pending") // pending | viewed | shortlisted | accepted | rejected
+  listingId    String
+  listing      MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([listingId, userId])
 }

@@ -276,6 +276,112 @@ async function main() {
   }
 
   console.log('Created social metrics')
+
+  // ── Marketplace Listings ──────────────────────────────────────────────────
+  const listings = [
+    {
+      title: 'Buscamos creador fitness para lanzamiento de suplementos',
+      brandName: 'NutriFit Pro',
+      budget: 1500, budgetType: 'fixed', currency: 'USD',
+      type: 'reel', platforms: 'instagram,tiktok',
+      niche: 'Fitness', location: 'España / LATAM',
+      description: 'Lanzamos nuestra nueva línea de proteínas plant-based y buscamos un creador de contenido fitness con audiencia activa. Necesitamos autenticidad: queremos que lo pruebes de verdad y compartas tu experiencia.',
+      deliverables: JSON.stringify(['2 Reels (1 Instagram + 1 TikTok)', '5 Stories con link a tienda', 'Mención en bio por 30 días']),
+      requirements: 'Mínimo 15K seguidores, engagement >3.5%, nicho fitness/nutrición',
+      deadline: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
+      status: 'open', featured: true, applicantsCount: 14,
+    },
+    {
+      title: 'Embajador/a de marca — herramienta de productividad IA',
+      brandName: 'TaskFlow AI',
+      budget: 800, budgetMax: 1200, budgetType: 'range', currency: 'USD',
+      type: 'ambassador', platforms: 'instagram,youtube,linkedin',
+      niche: 'Negocios', location: 'Global (español)',
+      description: 'Somos una startup de productividad con IA. Buscamos creadores del nicho de negocios, emprendimiento o productividad que usen nuestra herramienta y la recomienden de forma orgánica.',
+      deliverables: JSON.stringify(['4 posts mensuales', '1 video tutorial YouTube', 'Código de descuento exclusivo para audiencia']),
+      requirements: '20K+ seguidores, nicho business/productividad, engagement real',
+      deadline: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
+      status: 'open', featured: true, applicantsCount: 8,
+    },
+    {
+      title: 'UGC para campaña de moda sostenible — sin publicación requerida',
+      brandName: 'EcoWear Studio',
+      budget: 400, budgetType: 'fixed', currency: 'USD',
+      type: 'ugc', platforms: 'instagram',
+      niche: 'Moda', location: 'España',
+      description: 'Buscamos creadores UGC para producir contenido fotográfico y de video de nuestra colección primavera. El contenido será usado en nuestras redes y ads. No necesitas publicarlo en tu cuenta.',
+      deliverables: JSON.stringify(['6 fotos lifestyle HD', '2 videos cortos 15-30s', 'Derechos de uso por 6 meses']),
+      requirements: 'Experiencia en fotografía/video, estética limpia, nicho moda o lifestyle',
+      deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      status: 'open', featured: false, applicantsCount: 22,
+    },
+    {
+      title: 'Creador de gaming para review de periféricos',
+      brandName: 'GearZone',
+      budget: 600, budgetType: 'fixed', currency: 'USD',
+      type: 'video', platforms: 'youtube,tiktok',
+      niche: 'Gaming', location: 'LATAM',
+      description: 'Marca de periféricos gaming busca creadores para review honesto de nuestro nuevo headset y mouse. Enviamos el producto + compensación económica.',
+      deliverables: JSON.stringify(['1 video review YouTube (+8 min)', '1 Short/TikTok resumen', 'Pinned comment con link de compra']),
+      requirements: '5K+ suscriptores YouTube o 10K TikTok, nicho gaming',
+      deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      status: 'open', featured: false, applicantsCount: 31,
+    },
+    {
+      title: 'Serie de contenido educativo — finanzas personales',
+      brandName: 'InverFácil',
+      budget: 2500, budgetType: 'fixed', currency: 'USD',
+      type: 'series', platforms: 'instagram,tiktok',
+      niche: 'Finanzas', location: 'México / España',
+      description: 'App de inversiones busca creador experto en finanzas personales para una serie de 6 videos explicando conceptos básicos de inversión. Buscamos tono didáctico y cercano.',
+      deliverables: JSON.stringify(['6 Reels/TikToks (serie completa)', '6 carruseles complementarios', 'Briefing y revisión incluida']),
+      requirements: '30K+ seguidores, nicho finanzas/economía, perfil verificado o reconocido',
+      deadline: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+      status: 'open', featured: true, applicantsCount: 5,
+    },
+    {
+      title: 'Afiliado para software de diseño — comisión recurrente',
+      brandName: 'DesignPro',
+      budget: 0, budgetType: 'negotiable', currency: 'USD',
+      type: 'affiliate', platforms: 'instagram,youtube,tiktok',
+      niche: 'Diseño', location: 'Global (español)',
+      description: 'Ofrecemos 30% de comisión recurrente mensual por cada suscripción activa que traigas. Programa de afiliados de alto ticket para creadores con audiencia de diseñadores o creativos.',
+      deliverables: JSON.stringify(['Integración orgánica en contenido existente', 'Link de afiliado personalizado', 'Reporte mensual de conversiones']),
+      requirements: 'Audiencia de diseñadores, creativos o freelancers. Sin mínimo de seguidores.',
+      deadline: undefined,
+      status: 'open', featured: false, applicantsCount: 18,
+    },
+    {
+      title: 'Lanzamiento app de meditación — micro-influencers',
+      brandName: 'Sereno App',
+      budget: 300, budgetMax: 500, budgetType: 'range', currency: 'USD',
+      type: 'reel', platforms: 'instagram',
+      niche: 'Bienestar', location: 'España / LATAM',
+      description: 'App de meditación y mindfulness busca 10 micro-influencers del nicho wellness para campaña coordinada. Valoramos la autenticidad y conexión real con la audiencia.',
+      deliverables: JSON.stringify(['1 Reel con experiencia personal', '3 Stories + link', '1 Story de seguimiento a la semana']),
+      requirements: '3K–30K seguidores, engagement >4%, nicho bienestar/salud/mindfulness',
+      deadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+      status: 'open', featured: false, applicantsCount: 47,
+    },
+    {
+      title: 'Post patrocinado — nueva línea de skincare coreano',
+      brandName: 'K-Glow Beauty',
+      budget: 900, budgetType: 'fixed', currency: 'USD',
+      type: 'sponsored_post', platforms: 'instagram',
+      niche: 'Belleza', location: 'España',
+      description: 'Marca de cosmética coreana busca creadores del nicho belleza para presentar su nueva línea de hidratación. Enviamos producto completo + fee.',
+      deliverables: JSON.stringify(['1 post en feed (foto o carrusel)', '3 Stories el día del lanzamiento', 'Contenido en línea mínimo 45 días']),
+      requirements: '10K+ seguidores Instagram, nicho belleza/skincare, perfil estético cuidado',
+      deadline: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000),
+      status: 'open', featured: false, applicantsCount: 29,
+    },
+  ]
+
+  // Delete existing and re-seed
+  await prisma.marketplaceListing.deleteMany({})
+  await prisma.marketplaceListing.createMany({ data: listings })
+  console.log(`Created ${listings.length} marketplace listings`)
+
   console.log('Seeding complete!')
   console.log('\nDemo user created:')
   console.log('Email: demo@influctor.app')

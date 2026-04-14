@@ -7,7 +7,7 @@ import {
   Settings, Zap, ChevronRight, Flame, DollarSign, Handshake,
   CalendarDays, BookOpen, Building2, Users2, FileText,
   Hash, SplitSquareVertical, RefreshCw, Search, TrendingUp,
-  Mail, Trophy, ClipboardList, CreditCard
+  Mail, Trophy, ClipboardList, CreditCard, ShoppingBag
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -22,7 +22,8 @@ const creatorNav = [
 
 const growthNav = [
   { href: '/monetization', label: 'Monetización', icon: DollarSign },
-  { href: '/deals', label: 'Brand Deals', icon: Handshake },
+  { href: '/marketplace', label: 'Marketplace Deals', icon: ShoppingBag, badge: 'NUEVO', badgeColor: 'text-emerald-300 bg-emerald-500/20 border-emerald-500/30' },
+  { href: '/deals', label: 'Brand Deals CRM', icon: Handshake },
   { href: '/outreach', label: 'Outreach Kit', icon: Mail, badge: 'NUEVO', badgeColor: 'text-cyan-300 bg-cyan-500/20 border-cyan-500/30' },
   { href: '/playbooks', label: 'Playbooks', icon: BookOpen },
   { href: '/reports', label: 'Reportes', icon: ClipboardList, badge: 'NUEVO', badgeColor: 'text-emerald-300 bg-emerald-500/20 border-emerald-500/30' },
