@@ -1,66 +1,82 @@
 'use client'
 
 import { useState } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Target, Sparkles, RefreshCw, Download, Calendar, CheckCircle, Clock, Zap, ArrowUp, ArrowDown, Mail } from 'lucide-react'
+import {
+  BarChart3, TrendingUp, DollarSign, Target, Sparkles, RefreshCw,
+  Download, Calendar, CheckCircle, Zap, ArrowUp, ArrowDown, Mail,
+  AlertCircle, Link as LinkIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UpgradeGate from '@/components/ui/UpgradeGate'
 
-const DEMO_REPORT = {
-  week: 'Semana del 8 al 14 de Abril, 2024',
-  summary: {
-    followers_gained: 1240,
-    followers_change: +18.3,
-    reach: 48200,
-    reach_change: +12.1,
-    engagement_rate: 4.7,
-    eng_change: +0.3,
-    income: 1850,
-    income_change: +22.0,
-  },
-  top_content: [
-    { title: 'Cómo gané $5K en mi primer mes como creador', views: 24300, likes: 1820, platform: 'TikTok' },
-    { title: '5 herramientas de IA que uso cada día', views: 18700, likes: 1340, platform: 'Instagram' },
-    { title: 'Mi rutina mañanera que cambió mi productividad', views: 9400, likes: 720, platform: 'Instagram' },
-  ],
-  goals_progress: [
-    { title: '10K seguidores en TikTok', progress: 73, current: 7300, target: 10000 },
-    { title: 'Ingresos $2K/mes', progress: 92, current: 1850, target: 2000 },
-    { title: '3 brand deals activos', progress: 33, current: 1, target: 3 },
-  ],
-  ai_usage: 14,
-  recommendations: [
-    'Tu mejor día para publicar fue el jueves (2.3x más alcance). Prioriza ese día.',
-    'Los Reels de tips prácticos generaron 40% más engagement que el contenido de estilo de vida.',
-    'Responder comentarios en la primera hora aumentó tu alcance un 28%.',
-    'Considera aumentar la frecuencia en TikTok de 5 a 7 posts por semana.',
-  ],
-  goals_next_week: [
-    'Publicar 7 videos en TikTok (meta: 10K seguidores)',
-    'Cerrar 1 brand deal con marca de productividad',
-    'Crear 1 carrusel educativo para Instagram',
-    'Responder todos los comentarios en las primeras 2h',
-  ],
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface GoalData      { title: string; currentValue: number; targetValue: number; unit: string; platform: string | null }
+interface IncomeData    { amount: number; date: string; source: string; platform: string | null }
+interface UsageData     { createdAt: string }
+interface PostData      { title: string; platform: string; type: string; publishedAt: string | null }
+interface SnapshotData  { date: string; platform: string; followers: number; newFollowers: number; reach: number; impressions: number; engagement: number }
+
+interface Props {
+  plan: string
+  goals: GoalData[]
+  income: IncomeData[]
+  aiUsage: UsageData[]
+  contentPosts: PostData[]
+  snapshots: SnapshotData[]
 }
 
-const WEEK_OPTIONS = [
-  'Semana del 8 al 14 Abr',
-  'Semana del 1 al 7 Abr',
-  'Semana del 25 al 31 Mar',
-  'Semana del 18 al 24 Mar',
-]
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, change, icon: Icon, color }: { label: string; value: string; change: number; icon: any; color: string }) {
+function weekBounds(weeksAgo = 0) {
+  const end = new Date()
+  end.setDate(end.getDate() - weeksAgo * 7)
+  end.setHours(23, 59, 59, 999)
+  const start = new Date(end)
+  start.setDate(start.getDate() - 6)
+  start.setHours(0, 0, 0, 0)
+  return { start, end }
+}
+
+function sumIncome(income: IncomeData[], start: Date, end: Date) {
+  return income
+    .filter(i => { const d = new Date(i.date); return d >= start && d <= end })
+    .reduce((s, i) => s + i.amount, 0)
+}
+
+function pctChange(current: number, previous: number) {
+  if (previous === 0) return current > 0 ? 100 : 0
+  return Math.round(((current - previous) / previous) * 100 * 10) / 10
+}
+
+function weekLabel(weeksAgo = 0) {
+  const { start, end } = weekBounds(weeksAgo)
+  const fmt = (d: Date) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+  return `Semana del ${fmt(start)} al ${fmt(end)}`
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function StatCard({
+  label, value, change, icon: Icon, color, hasData,
+}: {
+  label: string; value: string; change: number; icon: any; color: string; hasData: boolean
+}) {
   const isUp = change >= 0
   return (
     <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
         <div className={cn('p-2 rounded-lg', color)}>
-          <Icon size={14} />
+          <Icon size={14} className={color.split(' ')[1]} />
         </div>
-        <div className={cn('flex items-center gap-0.5 text-xs font-medium', isUp ? 'text-emerald-400' : 'text-red-400')}>
-          {isUp ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
-          {Math.abs(change)}%
-        </div>
+        {hasData ? (
+          <div className={cn('flex items-center gap-0.5 text-xs font-medium', isUp ? 'text-emerald-400' : 'text-red-400')}>
+            {isUp ? <ArrowUp size={11} /> : <ArrowDown size={11} />}
+            {Math.abs(change)}%
+          </div>
+        ) : (
+          <span className="text-[10px] text-gray-600">sin datos</span>
+        )}
       </div>
       <div className="text-xl font-bold text-white mb-0.5">{value}</div>
       <div className="text-xs text-gray-500">{label}</div>
@@ -68,58 +84,109 @@ function StatCard({ label, value, change, icon: Icon, color }: { label: string; 
   )
 }
 
-interface Props {
-  data: {
-    goals: any[]
-    income: any[]
-    campaigns: any[]
-    aiUsage: any[]
-  }
-  plan: string
-}
+// ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function ReportsClient({ data, plan }: Props) {
+const WEEK_COUNT = 4
+
+export default function ReportsClient({ plan, goals, income, aiUsage, contentPosts, snapshots }: Props) {
   const [selectedWeek, setSelectedWeek] = useState(0)
-  const [generating, setGenerating] = useState(false)
-  const [aiInsight, setAiInsight] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sendResult, setSendResult] = useState<{ ok?: boolean; error?: string } | null>(null)
+  const [generating, setGenerating]     = useState(false)
+  const [aiInsight, setAiInsight]       = useState('')
+  const [sending, setSending]           = useState(false)
+  const [sendResult, setSendResult]     = useState<{ ok?: boolean; error?: string } | null>(null)
 
-  async function sendEmailReport() {
-    setSending(true)
-    setSendResult(null)
-    try {
-      const res = await fetch('/api/email/weekly-report', { method: 'POST' })
-      const data = await res.json()
-      setSendResult(res.ok ? { ok: true } : { error: data.error })
-    } catch {
-      setSendResult({ error: 'Error de conexión' })
-    }
-    setSending(false)
-    setTimeout(() => setSendResult(null), 5000)
-  }
+  // ── Computed metrics for selected week ──────────────────────────────────────
+  const { start: wStart, end: wEnd }       = weekBounds(selectedWeek)
+  const { start: pStart, end: pEnd }       = weekBounds(selectedWeek + 1)
 
-  const r = DEMO_REPORT
+  // Income
+  const weekIncome = sumIncome(income, wStart, wEnd)
+  const prevIncome = sumIncome(income, pStart, pEnd)
+  const hasIncomeData = income.length > 0
+  const incomeChange  = pctChange(weekIncome, prevIncome)
 
+  // AI usage
+  const weekAiCount = aiUsage.filter(a => {
+    const d = new Date(a.createdAt); return d >= wStart && d <= wEnd
+  }).length
+  const prevAiCount = aiUsage.filter(a => {
+    const d = new Date(a.createdAt); return d >= pStart && d <= pEnd
+  }).length
+
+  // Social snapshots
+  const weekSnaps   = snapshots.filter(s => { const d = new Date(s.date); return d >= wStart && d <= wEnd })
+  const latestSnap  = weekSnaps[0]
+  const hasSnapData = weekSnaps.length > 0
+
+  const totalNewFollowers = weekSnaps.reduce((s, sn) => s + sn.newFollowers, 0)
+  const prevSnaps         = snapshots.filter(s => { const d = new Date(s.date); return d >= pStart && d <= pEnd })
+  const prevNewFollowers  = prevSnaps.reduce((s, sn) => s + sn.newFollowers, 0)
+  const followersChange   = pctChange(totalNewFollowers, prevNewFollowers)
+
+  const avgReach          = weekSnaps.length > 0 ? Math.round(weekSnaps.reduce((s, sn) => s + sn.reach, 0) / weekSnaps.length) : 0
+  const prevAvgReach      = prevSnaps.length > 0 ? Math.round(prevSnaps.reduce((s, sn) => s + sn.reach, 0) / prevSnaps.length) : 0
+  const reachChange       = pctChange(avgReach, prevAvgReach)
+
+  const avgEngagement     = weekSnaps.length > 0 ? parseFloat((weekSnaps.reduce((s, sn) => s + sn.engagement, 0) / weekSnaps.length).toFixed(2)) : 0
+  const prevAvgEng        = prevSnaps.length > 0 ? parseFloat((prevSnaps.reduce((s, sn) => s + sn.engagement, 0) / prevSnaps.length).toFixed(2)) : 0
+  const engChange         = pctChange(avgEngagement, prevAvgEng)
+
+  // Goals progress (real)
+  const goalsProgress = goals.slice(0, 4).map(g => ({
+    title:    g.title,
+    progress: g.targetValue > 0 ? Math.min(100, Math.round((g.currentValue / g.targetValue) * 100)) : 0,
+    current:  g.currentValue,
+    target:   g.targetValue,
+    unit:     g.unit,
+  }))
+
+  // Top content this week (real published posts)
+  const weekPosts = contentPosts.filter(p => {
+    if (!p.publishedAt) return false
+    const d = new Date(p.publishedAt)
+    return d >= wStart && d <= wEnd
+  })
+  // If no posts this week, show most recent published posts
+  const topContent = (weekPosts.length > 0 ? weekPosts : contentPosts).slice(0, 3)
+
+  // Next week suggestions from active goals
+  const nextWeekGoals = goals.slice(0, 4).map(g => {
+    const pct = g.targetValue > 0 ? (g.currentValue / g.targetValue) * 100 : 0
+    const remaining = Math.ceil(g.targetValue - g.currentValue)
+    return `${g.title} — quedan ${remaining.toLocaleString()} ${g.unit} (${Math.round(pct)}%)`
+  })
+
+  // Build AI prompt with real data
   async function generateInsight() {
     setGenerating(true)
     setAiInsight('')
-    const prompt = `Genera un resumen ejecutivo de esta semana para un creador de contenido:
 
-Datos clave:
-- Nuevos seguidores: +${r.summary.followers_gained} (${r.summary.followers_change}% vs semana anterior)
-- Alcance: ${r.summary.reach.toLocaleString()} personas
-- Engagement: ${r.summary.engagement_rate}%
-- Ingresos: $${r.summary.income}
+    const incomeStr  = hasIncomeData ? `$${weekIncome.toFixed(0)}` : 'no registrado'
+    const followStr  = hasSnapData ? `+${totalNewFollowers}` : 'no conectado'
+    const reachStr   = hasSnapData ? avgReach.toLocaleString() : 'no disponible'
+    const engStr     = hasSnapData ? `${avgEngagement}%` : 'no disponible'
+    const postsStr   = topContent.map(p => `- "${p.title}" en ${p.platform}`).join('\n') || '- Sin posts publicados esta semana'
+    const goalsStr   = goalsProgress.map(g => `- ${g.title}: ${g.progress}% (${g.current.toLocaleString()}/${g.target.toLocaleString()} ${g.unit})`).join('\n') || '- Sin metas activas'
 
-Mejor contenido:
-${r.top_content.map(c => `- "${c.title}" (${c.views.toLocaleString()} views en ${c.platform})`).join('\n')}
+    const prompt = `Eres un estratega de contenido. Analiza esta semana de un creador de contenido:
 
-Dame:
-1. Un análisis de qué está funcionando y por qué
-2. El patrón de crecimiento que observas
-3. Las 3 acciones más importantes para la próxima semana
-4. Un pronóstico realista si sigue esta tendencia`
+MÉTRICAS SOCIALES:
+- Nuevos seguidores: ${followStr}
+- Alcance promedio: ${reachStr}
+- Engagement: ${engStr}
+- Ingresos esta semana: ${incomeStr}
+- Generaciones de IA usadas: ${weekAiCount}
+
+CONTENIDO PUBLICADO:
+${postsStr}
+
+PROGRESO DE METAS:
+${goalsStr}
+
+Dame un análisis breve y accionable con:
+1. Qué está funcionando bien esta semana
+2. El área más urgente a mejorar
+3. Las 3 acciones concretas para la próxima semana`
 
     try {
       const res = await fetch('/api/ai/generate', {
@@ -127,14 +194,31 @@ Dame:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'strategy', fields: { topic: prompt, platform: 'instagram' } }),
       })
-      const resData = await res.json()
-      setAiInsight(resData.result || '')
+      const data = await res.json()
+      setAiInsight(data.result || '')
     } catch {}
     setGenerating(false)
   }
 
+  async function sendEmailReport() {
+    setSending(true)
+    setSendResult(null)
+    try {
+      const res  = await fetch('/api/email/weekly-report', { method: 'POST' })
+      const data = await res.json()
+      setSendResult(res.ok ? { ok: true } : { error: data.error })
+    } catch { setSendResult({ error: 'Error de conexión' }) }
+    setSending(false)
+    setTimeout(() => setSendResult(null), 5000)
+  }
+
+  const weekOptions = Array.from({ length: WEEK_COUNT }, (_, i) => weekLabel(i))
+
+  const noSocialData = !hasSnapData
+
   return (
     <div className="space-y-6">
+
       {/* Send result banner */}
       {sendResult && (
         <div className={cn(
@@ -144,20 +228,34 @@ Dame:
             : 'bg-red-500/10 border-red-500/20 text-red-400'
         )}>
           {sendResult.ok
-            ? <><CheckCircle size={14} /> Reporte enviado a tu email correctamente</>
+            ? <><CheckCircle size={14} /> Reporte enviado a tu email</>
             : <><Zap size={14} /> {sendResult.error}</>}
         </div>
       )}
 
+      {/* No social data notice */}
+      {noSocialData && (
+        <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl">
+          <LinkIcon size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-blue-300">Conecta Instagram para métricas en tiempo real</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Los datos de seguidores, alcance y engagement provienen de la API de Instagram.{' '}
+              <a href="/settings" className="text-blue-400 hover:underline">Conectar cuenta →</a>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <select
             value={selectedWeek}
             onChange={e => setSelectedWeek(Number(e.target.value))}
             className="px-3 py-2 bg-[#13131f] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
           >
-            {WEEK_OPTIONS.map((w, i) => (
+            {weekOptions.map((w, i) => (
               <option key={i} value={i}>{w}</option>
             ))}
           </select>
@@ -174,7 +272,9 @@ Dame:
               disabled={generating}
               className="flex items-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
             >
-              {generating ? <><RefreshCw size={12} className="animate-spin" /> Generando...</> : <><Sparkles size={12} /> Insight IA</>}
+              {generating
+                ? <><RefreshCw size={12} className="animate-spin" /> Generando...</>
+                : <><Sparkles size={12} /> Insight IA</>}
             </button>
           )}
           {plan !== 'free' && (
@@ -183,7 +283,9 @@ Dame:
               disabled={sending}
               className="flex items-center gap-2 px-3 py-2 bg-[#13131f] border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-xs rounded-lg transition-colors disabled:opacity-50"
             >
-              {sending ? <><RefreshCw size={12} className="animate-spin" /> Enviando...</> : <><Mail size={12} /> Enviar por email</>}
+              {sending
+                ? <><RefreshCw size={12} className="animate-spin" /> Enviando...</>
+                : <><Mail size={12} /> Enviar por email</>}
             </button>
           )}
           <button className="flex items-center gap-2 px-3 py-2 bg-[#13131f] border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-xs rounded-lg transition-colors">
@@ -194,37 +296,77 @@ Dame:
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Nuevos seguidores" value={`+${r.summary.followers_gained.toLocaleString()}`} change={r.summary.followers_change} icon={TrendingUp} color="bg-violet-500/10 text-violet-400" />
-        <StatCard label="Alcance total" value={`${(r.summary.reach / 1000).toFixed(1)}K`} change={r.summary.reach_change} icon={BarChart3} color="bg-blue-500/10 text-blue-400" />
-        <StatCard label="Engagement" value={`${r.summary.engagement_rate}%`} change={r.summary.eng_change} icon={Zap} color="bg-amber-500/10 text-amber-400" />
-        <StatCard label="Ingresos" value={`$${r.summary.income.toLocaleString()}`} change={r.summary.income_change} icon={DollarSign} color="bg-emerald-500/10 text-emerald-400" />
+        <StatCard
+          label="Nuevos seguidores"
+          value={hasSnapData ? `+${totalNewFollowers.toLocaleString()}` : '—'}
+          change={followersChange}
+          icon={TrendingUp}
+          color="bg-violet-500/10 text-violet-400"
+          hasData={hasSnapData && (totalNewFollowers > 0 || prevNewFollowers > 0)}
+        />
+        <StatCard
+          label="Alcance promedio"
+          value={hasSnapData && avgReach > 0 ? `${(avgReach / 1000).toFixed(1)}K` : '—'}
+          change={reachChange}
+          icon={BarChart3}
+          color="bg-blue-500/10 text-blue-400"
+          hasData={hasSnapData && avgReach > 0}
+        />
+        <StatCard
+          label="Engagement"
+          value={hasSnapData && avgEngagement > 0 ? `${avgEngagement}%` : '—'}
+          change={engChange}
+          icon={Zap}
+          color="bg-amber-500/10 text-amber-400"
+          hasData={hasSnapData && avgEngagement > 0}
+        />
+        <StatCard
+          label="Ingresos esta semana"
+          value={hasIncomeData ? `$${weekIncome.toLocaleString()}` : '—'}
+          change={incomeChange}
+          icon={DollarSign}
+          color="bg-emerald-500/10 text-emerald-400"
+          hasData={hasIncomeData && (weekIncome > 0 || prevIncome > 0)}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
+
           {/* Top content */}
           <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4">
             <h3 className="font-semibold text-white text-sm mb-4 flex items-center gap-2">
               <TrendingUp size={13} className="text-violet-400" />
-              Mejor contenido de la semana
+              Contenido publicado
+              {weekPosts.length > 0 && (
+                <span className="text-[10px] text-gray-600 font-normal ml-1">esta semana</span>
+              )}
             </h3>
-            <div className="space-y-3">
-              {r.top_content.map((c, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-[#0d0d1a] rounded-lg">
-                  <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold', i === 0 ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-700 text-gray-400')}>
-                    #{i + 1}
+            {topContent.length > 0 ? (
+              <div className="space-y-3">
+                {topContent.map((c, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-[#0d0d1a] rounded-lg">
+                    <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0', i === 0 ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-700 text-gray-400')}>
+                      #{i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-200 font-medium truncate">{c.title}</p>
+                      <p className="text-xs text-gray-500">{c.platform} · {c.type}</p>
+                    </div>
+                    {c.publishedAt && (
+                      <span className="text-[10px] text-gray-600 flex-shrink-0">
+                        {new Date(c.publishedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-200 font-medium truncate">{c.title}</p>
-                    <p className="text-xs text-gray-500">{c.platform}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-white">{(c.views / 1000).toFixed(1)}K</div>
-                    <div className="text-xs text-gray-500">❤️ {c.likes.toLocaleString()}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-600">
+                <p className="text-sm">Sin posts publicados todavía</p>
+                <a href="/calendar" className="text-xs text-violet-400 hover:underline mt-1 inline-block">Programar contenido →</a>
+              </div>
+            )}
           </div>
 
           {/* Recommendations */}
@@ -232,16 +374,31 @@ Dame:
             plan={plan}
             requiredPlan="creator"
             feature="Insights automáticos"
-            description="Análisis inteligente de tu contenido, patrones de crecimiento y recomendaciones personalizadas cada semana."
+            description="Análisis inteligente de tu contenido, patrones de crecimiento y recomendaciones personalizadas."
             variant="overlay"
           >
             <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4">
               <h3 className="font-semibold text-white text-sm mb-4 flex items-center gap-2">
                 <Sparkles size={13} className="text-amber-400" />
-                Insights automáticos
+                Insights de la semana
               </h3>
               <div className="space-y-2">
-                {r.recommendations.map((rec, i) => (
+                {[
+                  weekAiCount > 0
+                    ? `Usaste la IA ${weekAiCount} ${weekAiCount === 1 ? 'vez' : 'veces'} esta semana — sigue generando contenido con consistencia.`
+                    : 'No usaste el generador de IA esta semana — prueba el AI Studio para acelerar tu producción.',
+                  hasIncomeData && weekIncome > 0
+                    ? `Generaste $${weekIncome.toFixed(0)} esta semana. ${weekIncome > prevIncome ? 'Tendencia positiva — sigue monetizando.' : 'Explora nuevas fuentes de ingreso.'}`
+                    : 'Registra tus ingresos en Analytics para ver el progreso de monetización.',
+                  goalsProgress.length > 0
+                    ? `Meta más cercana: "${goalsProgress.sort((a, b) => b.progress - a.progress)[0]?.title}" al ${goalsProgress[0]?.progress}%.`
+                    : 'Crea metas en la sección Goals para seguir tu progreso semana a semana.',
+                  hasSnapData
+                    ? avgEngagement > 3
+                      ? `Engagement de ${avgEngagement}% — por encima del promedio. Mantén el ritmo de respuesta a comentarios.`
+                      : `Engagement de ${avgEngagement}% — intenta responder comentarios en la primera hora de publicar.`
+                    : 'Conecta Instagram para ver métricas de engagement en tiempo real.',
+                ].map((rec, i) => (
                   <div key={i} className="flex items-start gap-2 p-2.5 bg-[#0d0d1a] rounded-lg">
                     <CheckCircle size={13} className="text-emerald-400 mt-0.5 flex-shrink-0" />
                     <p className="text-xs text-gray-300">{rec}</p>
@@ -251,7 +408,7 @@ Dame:
             </div>
           </UpgradeGate>
 
-          {/* AI Insight */}
+          {/* AI Deep insight */}
           {aiInsight && (
             <div className="bg-gradient-to-br from-violet-900/20 to-purple-900/10 border border-violet-500/20 rounded-xl p-4">
               <h3 className="font-semibold text-violet-300 text-sm mb-3 flex items-center gap-2">
@@ -269,39 +426,53 @@ Dame:
               <Target size={13} className="text-violet-400" />
               Progreso de metas
             </h3>
-            <div className="space-y-4">
-              {r.goals_progress.map((goal, i) => (
-                <div key={i}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-gray-300 font-medium">{goal.title}</span>
-                    <span className="text-xs font-bold text-white">{goal.progress}%</span>
+            {goalsProgress.length > 0 ? (
+              <div className="space-y-4">
+                {goalsProgress.map((goal, i) => (
+                  <div key={i}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs text-gray-300 font-medium line-clamp-1">{goal.title}</span>
+                      <span className="text-xs font-bold text-white ml-2 flex-shrink-0">{goal.progress}%</span>
+                    </div>
+                    <div className="h-1.5 bg-[#0d0d1a] rounded-full overflow-hidden">
+                      <div
+                        className={cn('h-full rounded-full transition-all', goal.progress >= 80 ? 'bg-emerald-500' : goal.progress >= 50 ? 'bg-violet-500' : 'bg-amber-500')}
+                        style={{ width: `${goal.progress}%` }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {goal.current.toLocaleString()} / {goal.target.toLocaleString()} {goal.unit}
+                    </div>
                   </div>
-                  <div className="h-1.5 bg-[#0d0d1a] rounded-full overflow-hidden">
-                    <div
-                      className={cn('h-full rounded-full transition-all', goal.progress >= 80 ? 'bg-emerald-500' : goal.progress >= 50 ? 'bg-violet-500' : 'bg-amber-500')}
-                      style={{ width: `${goal.progress}%` }}
-                    />
-                  </div>
-                  <div className="text-[10px] text-gray-500 mt-1">{goal.current.toLocaleString()} / {goal.target.toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-600">
+                <Target size={24} className="mx-auto mb-2 opacity-30" />
+                <p className="text-xs">Sin metas activas</p>
+                <a href="/goals" className="text-[11px] text-violet-400 hover:underline mt-1 inline-block">Crear meta →</a>
+              </div>
+            )}
           </div>
 
-          {/* Next week goals */}
+          {/* Next week */}
           <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4">
             <h3 className="font-semibold text-white text-sm mb-3 flex items-center gap-2">
               <Calendar size={13} className="text-blue-400" />
-              Objetivos próxima semana
+              En qué enfocarse
             </h3>
-            <div className="space-y-2">
-              {r.goals_next_week.map((goal, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-violet-500/40 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-400">{goal}</p>
-                </div>
-              ))}
-            </div>
+            {nextWeekGoals.length > 0 ? (
+              <div className="space-y-2">
+                {nextWeekGoals.map((goal, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="w-4 h-4 rounded-full border-2 border-violet-500/40 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-gray-400">{goal}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-600">Agrega metas activas para ver sugerencias de la próxima semana</p>
+            )}
           </div>
 
           {/* AI usage */}
@@ -311,9 +482,16 @@ Dame:
                 <Zap size={13} className="text-violet-400" />
                 Uso de IA
               </h3>
-              <span className="text-lg font-bold text-violet-300">{r.ai_usage}</span>
+              <span className="text-lg font-bold text-violet-300">{weekAiCount}</span>
             </div>
-            <p className="text-xs text-gray-500">Generaciones de contenido con IA esta semana</p>
+            <p className="text-xs text-gray-500">
+              Generaciones esta semana
+              {prevAiCount > 0 && (
+                <span className={cn('ml-2 font-medium', weekAiCount >= prevAiCount ? 'text-emerald-400' : 'text-red-400')}>
+                  {weekAiCount >= prevAiCount ? '↑' : '↓'} vs semana anterior ({prevAiCount})
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </div>
