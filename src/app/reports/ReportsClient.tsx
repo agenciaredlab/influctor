@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Target, Sparkles, RefreshCw, Download, Calendar, CheckCircle, Clock, Zap, ArrowUp, ArrowDown } from 'lucide-react'
+import { BarChart3, TrendingUp, DollarSign, Target, Sparkles, RefreshCw, Download, Calendar, CheckCircle, Clock, Zap, ArrowUp, ArrowDown, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UpgradeGate from '@/components/ui/UpgradeGate'
 
@@ -82,6 +82,22 @@ export default function ReportsClient({ data, plan }: Props) {
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [generating, setGenerating] = useState(false)
   const [aiInsight, setAiInsight] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ ok?: boolean; error?: string } | null>(null)
+
+  async function sendEmailReport() {
+    setSending(true)
+    setSendResult(null)
+    try {
+      const res = await fetch('/api/email/weekly-report', { method: 'POST' })
+      const data = await res.json()
+      setSendResult(res.ok ? { ok: true } : { error: data.error })
+    } catch {
+      setSendResult({ error: 'Error de conexión' })
+    }
+    setSending(false)
+    setTimeout(() => setSendResult(null), 5000)
+  }
 
   const r = DEMO_REPORT
 
@@ -119,6 +135,20 @@ Dame:
 
   return (
     <div className="space-y-6">
+      {/* Send result banner */}
+      {sendResult && (
+        <div className={cn(
+          'flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium border',
+          sendResult.ok
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+            : 'bg-red-500/10 border-red-500/20 text-red-400'
+        )}>
+          {sendResult.ok
+            ? <><CheckCircle size={14} /> Reporte enviado a tu email correctamente</>
+            : <><Zap size={14} /> {sendResult.error}</>}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -145,6 +175,15 @@ Dame:
               className="flex items-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               {generating ? <><RefreshCw size={12} className="animate-spin" /> Generando...</> : <><Sparkles size={12} /> Insight IA</>}
+            </button>
+          )}
+          {plan !== 'free' && (
+            <button
+              onClick={sendEmailReport}
+              disabled={sending}
+              className="flex items-center gap-2 px-3 py-2 bg-[#13131f] border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-xs rounded-lg transition-colors disabled:opacity-50"
+            >
+              {sending ? <><RefreshCw size={12} className="animate-spin" /> Enviando...</> : <><Mail size={12} /> Enviar por email</>}
             </button>
           )}
           <button className="flex items-center gap-2 px-3 py-2 bg-[#13131f] border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-xs rounded-lg transition-colors">
