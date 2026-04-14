@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Search, Users, Zap, DollarSign, Star, Filter, MapPin, ExternalLink, BarChart2, Heart, MessageCircle, CheckCircle, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import UpgradeGate from '@/components/ui/UpgradeGate'
 
 const DEMO_INFLUENCERS = [
   { id: '1', name: 'Sofia Vega', handle: '@sofiavega.fit', platform: 'instagram', niche: 'Fitness', followers: 128000, engagement: 5.2, avgViews: 42000, location: 'Madrid, ES', tier: 'Micro', rate: 800, verified: true, topics: ['fitness', 'nutrición', 'lifestyle'], recentGrowth: '+2.1K/sem', bio: 'Entrenadora personal & nutricionista. Transformaciones reales.' },
@@ -30,7 +31,7 @@ function formatK(n: number) {
   return String(n)
 }
 
-export default function InfluencerDiscoveryClient() {
+export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
   const [search, setSearch] = useState('')
   const [niche, setNiche] = useState('Todos')
   const [platform, setPlatform] = useState('Todas')
@@ -39,6 +40,8 @@ export default function InfluencerDiscoveryClient() {
   const [compared, setCompared] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
 
+  const isPro = plan === 'pro'
+
   const filtered = DEMO_INFLUENCERS.filter(inf => {
     if (search && !inf.name.toLowerCase().includes(search.toLowerCase()) && !inf.handle.toLowerCase().includes(search.toLowerCase()) && !inf.niche.toLowerCase().includes(search.toLowerCase())) return false
     if (niche !== 'Todos' && inf.niche !== niche) return false
@@ -46,6 +49,9 @@ export default function InfluencerDiscoveryClient() {
     if (tier !== 'Todos' && !tier.toLowerCase().includes(inf.tier.toLowerCase())) return false
     return true
   })
+
+  // Non-pro users see a teaser of 3 results
+  const visibleList = isPro ? filtered : filtered.slice(0, 3)
 
   function toggleCompare(id: string) {
     setCompared(prev => prev.includes(id) ? prev.filter(c => c !== id) : prev.length < 3 ? [...prev, id] : prev)
@@ -56,7 +62,7 @@ export default function InfluencerDiscoveryClient() {
   return (
     <div className="space-y-6">
       {/* Search & Filters */}
-      <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4 space-y-3">
+      <div className={cn('bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4 space-y-3', !isPro && 'opacity-60 pointer-events-none select-none')}>
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -65,6 +71,7 @@ export default function InfluencerDiscoveryClient() {
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por nombre, handle o nicho..."
               className="w-full pl-9 pr-4 py-2.5 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
+              disabled={!isPro}
             />
           </div>
           <button
@@ -120,8 +127,10 @@ export default function InfluencerDiscoveryClient() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* List */}
         <div className="lg:col-span-2 space-y-3">
-          <div className="text-xs text-gray-500">{filtered.length} influencers encontrados</div>
-          {filtered.map(inf => (
+          <div className="text-xs text-gray-500">
+            {isPro ? `${filtered.length} influencers encontrados` : `Mostrando 3 de ${filtered.length} resultados`}
+          </div>
+          {visibleList.map(inf => (
             <div
               key={inf.id}
               className={cn(
@@ -173,6 +182,17 @@ export default function InfluencerDiscoveryClient() {
               </div>
             </div>
           ))}
+
+          {/* Upgrade gate when not pro */}
+          {!isPro && (
+            <UpgradeGate
+              plan={plan}
+              requiredPlan="pro"
+              feature="Influencer Discovery Completo"
+              description={`Accede a la base de datos completa de ${DEMO_INFLUENCERS.length}+ influencers con filtros avanzados, comparativas y datos de contacto.`}
+              variant="block"
+            />
+          )}
         </div>
 
         {/* Detail */}

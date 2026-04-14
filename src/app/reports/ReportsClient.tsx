@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { BarChart3, TrendingUp, DollarSign, Target, Sparkles, RefreshCw, Download, Calendar, CheckCircle, Clock, Zap, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import UpgradeGate from '@/components/ui/UpgradeGate'
 
 const DEMO_REPORT = {
   week: 'Semana del 8 al 14 de Abril, 2024',
@@ -74,9 +75,10 @@ interface Props {
     campaigns: any[]
     aiUsage: any[]
   }
+  plan: string
 }
 
-export default function ReportsClient({ data }: Props) {
+export default function ReportsClient({ data, plan }: Props) {
   const [selectedWeek, setSelectedWeek] = useState(0)
   const [generating, setGenerating] = useState(false)
   const [aiInsight, setAiInsight] = useState('')
@@ -134,13 +136,17 @@ Dame:
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={generateInsight}
-            disabled={generating}
-            className="flex items-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-          >
-            {generating ? <><RefreshCw size={12} className="animate-spin" /> Generando...</> : <><Sparkles size={12} /> Insight IA</>}
-          </button>
+          {plan === 'free' ? (
+            <UpgradeGate plan={plan} requiredPlan="creator" feature="Insight IA" variant="banner" className="!py-1 !px-3" />
+          ) : (
+            <button
+              onClick={generateInsight}
+              disabled={generating}
+              className="flex items-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {generating ? <><RefreshCw size={12} className="animate-spin" /> Generando...</> : <><Sparkles size={12} /> Insight IA</>}
+            </button>
+          )}
           <button className="flex items-center gap-2 px-3 py-2 bg-[#13131f] border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-xs rounded-lg transition-colors">
             <Download size={12} /> Exportar PDF
           </button>
@@ -183,20 +189,28 @@ Dame:
           </div>
 
           {/* Recommendations */}
-          <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4">
-            <h3 className="font-semibold text-white text-sm mb-4 flex items-center gap-2">
-              <Sparkles size={13} className="text-amber-400" />
-              Insights automáticos
-            </h3>
-            <div className="space-y-2">
-              {r.recommendations.map((rec, i) => (
-                <div key={i} className="flex items-start gap-2 p-2.5 bg-[#0d0d1a] rounded-lg">
-                  <CheckCircle size={13} className="text-emerald-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-300">{rec}</p>
-                </div>
-              ))}
+          <UpgradeGate
+            plan={plan}
+            requiredPlan="creator"
+            feature="Insights automáticos"
+            description="Análisis inteligente de tu contenido, patrones de crecimiento y recomendaciones personalizadas cada semana."
+            variant="overlay"
+          >
+            <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4">
+              <h3 className="font-semibold text-white text-sm mb-4 flex items-center gap-2">
+                <Sparkles size={13} className="text-amber-400" />
+                Insights automáticos
+              </h3>
+              <div className="space-y-2">
+                {r.recommendations.map((rec, i) => (
+                  <div key={i} className="flex items-start gap-2 p-2.5 bg-[#0d0d1a] rounded-lg">
+                    <CheckCircle size={13} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-gray-300">{rec}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </UpgradeGate>
 
           {/* AI Insight */}
           {aiInsight && (

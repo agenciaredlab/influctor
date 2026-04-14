@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FileText, Copy, CheckCheck, Download, ChevronRight, Shield, Clock, DollarSign, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import UpgradeGate from '@/components/ui/UpgradeGate'
 
 const CONTRACT_TYPES = [
   { id: 'sponsored', label: 'Post Patrocinado', icon: '📢', desc: 'Para colaboraciones de contenido único' },
@@ -152,7 +153,7 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-export default function ContractsClient() {
+export default function ContractsClient({ plan }: { plan: string }) {
   const [contractType, setContractType] = useState('sponsored')
   const [fields, setFields] = useState<Record<string, string>>({})
   const [generated, setGenerated] = useState(false)
@@ -195,6 +196,12 @@ export default function ContractsClient() {
   ]
 
   return (
+    <UpgradeGate
+      plan={plan}
+      requiredPlan="creator"
+      feature="Contract Builder"
+      description="Genera contratos profesionales personalizados para posts patrocinados, embajadores, UGC y programas de afiliados."
+    >
     <div className="space-y-6">
       {/* Contract type */}
       <div>
@@ -258,5 +265,6 @@ export default function ContractsClient() {
         </div>
       </div>
     </div>
+    </UpgradeGate>
   )
 }
