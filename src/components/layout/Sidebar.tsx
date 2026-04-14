@@ -7,7 +7,7 @@ import {
   Settings, Zap, ChevronRight, Flame, DollarSign, Handshake,
   CalendarDays, BookOpen, Building2, Users2, FileText,
   Hash, SplitSquareVertical, RefreshCw, Search, TrendingUp,
-  Mail, Trophy, ClipboardList
+  Mail, Trophy, ClipboardList, CreditCard
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -125,15 +125,25 @@ export default function Sidebar() {
           <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">Sistema</span>
         </div>
         <NavItem href="/settings" label="Configuración" icon={Settings} isActive={pathname === '/settings'} />
+        <NavItem href="/pricing" label="Planes & Precios" icon={CreditCard} isActive={pathname === '/pricing'} />
       </nav>
 
-      {/* User */}
-      <div className="px-2 py-2 border-t border-[#1a1a2e] flex-shrink-0">
+      {/* User + Plan badge */}
+      <div className="px-2 py-2 border-t border-[#1a1a2e] flex-shrink-0 space-y-1.5">
+        {/* Upgrade CTA for free users */}
+        <Link
+          href="/pricing"
+          className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-gradient-to-r from-violet-600/20 to-purple-600/10 border border-violet-500/20 hover:border-violet-500/40 transition-all group"
+        >
+          <Zap size={11} className="text-violet-400 flex-shrink-0" />
+          <span className="text-[10px] font-medium text-violet-300 flex-1">Actualizar plan</span>
+          <ChevronRight size={9} className="text-violet-500 group-hover:text-violet-300" />
+        </Link>
         <div className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 cursor-pointer transition-all">
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">A</div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-medium text-gray-200 truncate">Alex Creator</div>
-            <div className="text-[9px] text-gray-600 truncate">demo@influctor.app</div>
+            <div className="text-[9px] text-gray-600 truncate">Plan Free</div>
           </div>
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
         </div>

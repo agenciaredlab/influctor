@@ -15,6 +15,13 @@ model User {
   bio         String?
   niche       String?
   tier        String         @default("creator") // creator | business | agency
+  // Stripe / Subscription
+  stripeCustomerId   String?  @unique
+  plan               String   @default("free") // free | creator | pro
+  planStatus         String   @default("active") // active | canceled | past_due | trialing | incomplete
+  planCurrentPeriodEnd DateTime?
+  aiUsageThisMonth   Int      @default(0)
+  aiUsageResetAt     DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   goals       Goal[]
@@ -27,6 +34,26 @@ model User {
   competitors Competitor[]
   playbookProgress PlaybookProgress[]
   socialAccounts SocialAccount[]
+  subscription Subscription?
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  stripeSubscriptionId String    @unique
+  stripeCustomerId     String
+  stripePriceId        String
+  plan                 String    // free | creator | pro
+  status               String    // active | canceled | past_due | trialing | incomplete | unpaid
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean   @default(false)
+  canceledAt           DateTime?
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 model Goal {

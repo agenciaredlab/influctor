@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
+import { getPlan } from '@/lib/plans'
 
 const SYSTEM_PROMPT = `Eres un experto en marketing digital, redes sociales y creación de contenido.
 Tienes más de 10 años de experiencia ayudando a creadores de contenido a crecer en Instagram, TikTok, YouTube, LinkedIn y Twitter.
@@ -132,6 +133,20 @@ export async function POST(req: NextRequest) {
       }, { status: 503 })
     }
 
+    // Check plan limits
+    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    if (user) {
+      const plan = getPlan(user.plan)
+      const limit = plan.limits.aiGenerationsPerMonth
+      if (limit !== Infinity && user.aiUsageThisMonth >= limit) {
+        return NextResponse.json({
+          error: `Alcanzaste el límite de ${limit} generaciones del plan ${plan.name}. Actualiza tu plan en /pricing para continuar.`,
+          limitReached: true,
+          plan: user.plan,
+        }, { status: 429 })
+      }
+    }
+
     const client = new Anthropic({ apiKey })
     const prompt = buildPrompt(type, fields)
 
@@ -144,19 +159,32 @@ export async function POST(req: NextRequest) {
 
     const result = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    // Save to AI usage history
+    // Save to AI usage history and increment monthly counter
     try {
-      const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-      if (user) {
-        await prisma.aiUsage.create({
-          data: {
-            userId: user.id,
-            type,
-            prompt: fields.topic,
-            result,
-            platform: fields.platform || null,
-          },
-        })
+      const dbUser = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+      if (dbUser) {
+        const now = new Date()
+        const resetAt = dbUser.aiUsageResetAt
+        const needsReset = !resetAt || resetAt.getMonth() !== now.getMonth() || resetAt.getFullYear() !== now.getFullYear()
+
+        await prisma.$transaction([
+          prisma.aiUsage.create({
+            data: {
+              userId: dbUser.id,
+              type,
+              prompt: fields.topic,
+              result,
+              platform: fields.platform || null,
+            },
+          }),
+          prisma.user.update({
+            where: { id: dbUser.id },
+            data: {
+              aiUsageThisMonth: needsReset ? 1 : { increment: 1 },
+              aiUsageResetAt: needsReset ? now : undefined,
+            },
+          }),
+        ])
       }
     } catch (e) {
       // Non-blocking
