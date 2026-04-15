@@ -10,14 +10,12 @@ export default async function PricingPage() {
   let aiUsed = 0
 
   try {
-    const user = await prisma.user.findFirst({
-      where: { email: 'demo@influctor.app' },
-      include: { subscription: true },
-    })
+    const user = await getSessionUser()
     if (user) {
       currentPlan = user.plan
       planStatus = user.planStatus
-      subscription = user.subscription
+      const sub = await prisma.subscription.findUnique({ where: { userId: user.id } })
+      subscription = sub
       aiUsed = user.aiUsageThisMonth
     }
   } catch {}

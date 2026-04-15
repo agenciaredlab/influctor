@@ -4,7 +4,20 @@ import Card from '@/components/ui/Card'
 import InstagramConnect from '@/components/social/InstagramConnect'
 import { getSessionUser } from '@/lib/session'
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  let userName = ''
+  let userEmail = ''
+  let userInitial = 'U'
+
+  try {
+    const user = await getSessionUser()
+    if (user) {
+      userName = user.name ?? ''
+      userEmail = user.email
+      userInitial = (user.name ?? user.email).charAt(0).toUpperCase()
+    }
+  } catch {}
+
   return (
     <DashboardLayout
       title="Configuración"
@@ -19,11 +32,11 @@ export default function SettingsPage() {
           </div>
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-2xl font-bold text-white">
-              A
+              {userInitial}
             </div>
             <div>
-              <h4 className="font-semibold text-white">Alex Creator</h4>
-              <p className="text-sm text-gray-400">demo@influctor.app</p>
+              {userName && <h4 className="font-semibold text-white">{userName}</h4>}
+              <p className="text-sm text-gray-400">{userEmail}</p>
             </div>
           </div>
         </Card>
