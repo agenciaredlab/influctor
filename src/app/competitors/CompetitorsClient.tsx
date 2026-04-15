@@ -135,10 +135,11 @@ interface ResearchResult {
   profiles?: ResearchProfile[]
 }
 
-interface Props { initialCompetitors: any[] }
+interface Props { initialCompetitors: any[]; plan: string }
 
-export default function CompetitorsClient({ initialCompetitors }: Props) {
+export default function CompetitorsClient({ initialCompetitors, plan }: Props) {
   const [competitors, setCompetitors] = useState<Competitor[]>(initialCompetitors.map(mapFromDb))
+  const canUseAI = plan === 'creator' || plan === 'pro'
   const [showAdd, setShowAdd]         = useState(false)
   const [editingId, setEditingId]     = useState<string | null>(null)
   const [selected, setSelected]       = useState<Competitor | null>(null)
@@ -175,24 +176,75 @@ export default function CompetitorsClient({ initialCompetitors }: Props) {
     setResearching(false)
   }
 
+  // Pre-fill the manual form with a found profile (for further editing)
   function selectProfile(profile: ResearchProfile, company: ResearchResult) {
     const followers = profile.realFollowers ?? profile.estimatedFollowers ?? 0
+    const platform  = profile.platform === 'facebook' ? 'instagram' : profile.platform
+    const noteStr   = `Fuente: IA${profile.dataSource === 'facebook_graph_api' ? ' + Facebook Graph API' : ''}${profile.followersNote ? `. ${profile.followersNote}` : ''}`
     setForm({
-      handle:       profile.handle || '',
-      platform:     profile.platform === 'facebook' ? 'instagram' : profile.platform,
-      niche:        '',
-      notes:        profile.followersNote
-        ? `Fuente: IA${profile.dataSource === 'facebook_graph_api' ? ' + Facebook Graph API' : ''}. ${profile.followersNote}`
-        : `Fuente: IA${profile.dataSource === 'facebook_graph_api' ? ' + Facebook Graph API' : ''}`,
-      followers:    String(followers),
-      engagement:   '',
-      postsPerWeek: '',
-      avgLikes:     '',
-      avgComments:  '',
-      topFormat:    'Reels',
+      handle: profile.handle || '', platform, niche: '', notes: noteStr,
+      followers: String(followers), engagement: '', postsPerWeek: '',
+      avgLikes: '', avgComments: '', topFormat: 'Reels',
     })
     setResearchResult(null)
     setResearchQuery('')
+  }
+
+  // Save or update a competitor directly from research results
+  async function saveFromResearch(profile: ResearchProfile, company: ResearchResult) {
+    const handle   = profile.handle || ''
+    const platform = profile.platform === 'facebook' ? 'instagram' : profile.platform
+    const followers = profile.realFollowers ?? profile.estimatedFollowers ?? 0
+    const noteStr   = `Fuente: IA${profile.dataSource === 'facebook_graph_api' ? ' + Facebook Graph API' : ''}${profile.followersNote ? `. ${profile.followersNote}` : ''}`
+
+    // Check if competitor already exists (same handle + platform)
+    const existing = competitors.find(
+      c => c.handle.toLowerCase() === handle.toLowerCase() && c.platform === platform
+    )
+
+    if (existing) {
+      // UPDATE existing competitor metrics
+      setSaving(true)
+      try {
+        const res = await fetch(`/api/competitors/${existing.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ followers, notes: noteStr }),
+        })
+        if (!res.ok) throw new Error((await res.json()).error)
+        const updated = { ...existing, followers, notes: noteStr }
+        setCompetitors(prev => prev.map(c => c.id === existing.id ? updated : c))
+        if (selected?.id === existing.id) setSelected(updated)
+        setResearchResult(null)
+        setResearchQuery('')
+        setShowAdd(false)
+      } catch (err: any) { setResearchError(err.message) }
+      setSaving(false)
+      return
+    }
+
+    // CREATE new competitor
+    setSaving(true)
+    try {
+      const payload = {
+        handle: handle.startsWith('@') ? handle : `@${handle}`,
+        platform, niche: company.companyName ?? '', notes: noteStr,
+        followers, engagement: 0, postsPerWeek: 0,
+        avgLikes: 0, avgComments: 0, topFormat: 'Reels',
+      }
+      const res = await fetch('/api/competitors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setCompetitors(prev => [mapFromDb(json.competitor), ...prev])
+      setResearchResult(null)
+      setResearchQuery('')
+      setShowAdd(false)
+    } catch (err: any) { setResearchError(err.message) }
+    setSaving(false)
   }
 
   const filtered = competitors.filter(c =>
@@ -563,84 +615,130 @@ export default function CompetitorsClient({ initialCompetitors }: Props) {
 
             {/* ── AI Research panel ── */}
             <div className="mb-5 p-3 bg-violet-900/10 border border-violet-500/20 rounded-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={13} className="text-violet-400" />
-                <span className="text-xs font-medium text-violet-300">Buscar con IA</span>
-              </div>
-              <form onSubmit={handleResearch} className="flex gap-2">
-                <input
-                  value={researchQuery}
-                  onChange={e => setResearchQuery(e.target.value)}
-                  placeholder="Nike, Apple, Zara, tudominio.com..."
-                  className="flex-1 px-3 py-2 bg-[#0d0d1a] border border-violet-500/20 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
-                />
-                <button type="submit" disabled={researching || !researchQuery.trim()}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
-                  {researching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-                  {researching ? 'Buscando...' : 'Buscar'}
-                </button>
-              </form>
-
-              {researchError && (
-                <p className="text-xs text-red-400 mt-2">{researchError}</p>
-              )}
-
-              {/* Research results */}
-              {researchResult && (
-                <div className="mt-3 space-y-2">
-                  {!researchResult.found ? (
-                    <p className="text-xs text-gray-500">No se encontró información sobre "{researchQuery}"</p>
-                  ) : (
-                    <>
-                      <div className="flex items-start gap-2 pb-2 border-b border-violet-500/10">
-                        <Globe size={12} className="text-violet-400 mt-0.5 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <span className="text-xs font-medium text-white">{researchResult.companyName}</span>
-                          {researchResult.website && (
-                            <span className="text-[10px] text-gray-500 ml-2">{researchResult.website}</span>
-                          )}
-                          {researchResult.description && (
-                            <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">{researchResult.description}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <p className="text-[10px] text-violet-400 font-medium">Perfiles encontrados — elige uno para agregar:</p>
-
-                      {(researchResult.profiles ?? []).map((p, i) => {
-                        const followers = p.realFollowers ?? p.estimatedFollowers
-                        const isReal    = p.dataSource === 'facebook_graph_api'
-                        return (
-                          <button key={i} onClick={() => selectProfile(p, researchResult)}
-                            className="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg bg-[#0d0d1a] border border-[#1a1a2e] hover:border-violet-500/30 transition-all group">
-                            <span className="text-sm">{PLATFORM_ICONS_FULL[p.platform]?.split(' ')[0] ?? '🌐'}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-gray-200">{p.handle}</span>
-                                {isReal && (
-                                  <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">REAL</span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-gray-600">
-                                {PLATFORM_ICONS_FULL[p.platform]?.split(' ').slice(1).join(' ')}
-                                {followers != null && (
-                                  <span className={cn('ml-2', isReal ? 'text-emerald-400' : 'text-gray-500')}>
-                                    {formatK(followers)} seguidores{!isReal && ' (estimado)'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <ChevronRight size={12} className="text-gray-600 group-hover:text-violet-400 transition-colors flex-shrink-0" />
-                          </button>
-                        )
-                      })}
-
-                      {(researchResult.profiles ?? []).length === 0 && (
-                        <p className="text-xs text-gray-500">No se encontraron perfiles sociales para esta empresa</p>
-                      )}
-                    </>
-                  )}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={13} className="text-violet-400" />
+                  <span className="text-xs font-medium text-violet-300">Buscar con IA</span>
                 </div>
+                {!canUseAI && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20 font-medium">
+                    Creator+
+                  </span>
+                )}
+              </div>
+
+              {!canUseAI ? (
+                <div className="text-center py-3">
+                  <p className="text-xs text-gray-500 mb-2">Búsqueda IA disponible en plan Creator o superior</p>
+                  <a href="/pricing" className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                    Ver planes →
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <form onSubmit={handleResearch} className="flex gap-2">
+                    <input
+                      value={researchQuery}
+                      onChange={e => setResearchQuery(e.target.value)}
+                      placeholder="Nike, Apple, Zara, tudominio.com..."
+                      className="flex-1 px-3 py-2 bg-[#0d0d1a] border border-violet-500/20 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
+                    />
+                    <button type="submit" disabled={researching || !researchQuery.trim()}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
+                      {researching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                      {researching ? 'Buscando...' : 'Buscar'}
+                    </button>
+                  </form>
+
+                  {researchError && (
+                    <p className="text-xs text-red-400 mt-2">{researchError}</p>
+                  )}
+
+                  {/* Research results */}
+                  {researchResult && (
+                    <div className="mt-3 space-y-2">
+                      {!researchResult.found ? (
+                        <p className="text-xs text-gray-500">No se encontró información sobre "{researchQuery}"</p>
+                      ) : (
+                        <>
+                          <div className="flex items-start gap-2 pb-2 border-b border-violet-500/10">
+                            <Globe size={12} className="text-violet-400 mt-0.5 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-xs font-medium text-white">{researchResult.companyName}</span>
+                              {researchResult.website && (
+                                <span className="text-[10px] text-gray-500 ml-2">{researchResult.website}</span>
+                              )}
+                              {researchResult.description && (
+                                <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">{researchResult.description}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] text-violet-400 font-medium">Perfiles encontrados:</p>
+
+                          {(researchResult.profiles ?? []).map((p, i) => {
+                            const followers = p.realFollowers ?? p.estimatedFollowers
+                            const isReal    = p.dataSource === 'facebook_graph_api'
+                            const exists    = competitors.find(
+                              c => c.handle.toLowerCase() === (p.handle || '').toLowerCase()
+                                && c.platform === (p.platform === 'facebook' ? 'instagram' : p.platform)
+                            )
+                            return (
+                              <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg bg-[#0d0d1a] border border-[#1a1a2e]">
+                                <span className="text-sm flex-shrink-0">{PLATFORM_ICONS_FULL[p.platform]?.split(' ')[0] ?? '🌐'}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs text-gray-200">{p.handle}</span>
+                                    {isReal && (
+                                      <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">REAL</span>
+                                    )}
+                                    {exists && (
+                                      <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20">Ya guardado</span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-gray-600">
+                                    {PLATFORM_ICONS_FULL[p.platform]?.split(' ').slice(1).join(' ')}
+                                    {followers != null && (
+                                      <span className={cn('ml-2', isReal ? 'text-emerald-400' : 'text-gray-500')}>
+                                        {formatK(followers)} seg.{!isReal && ' (est.)'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex gap-1 flex-shrink-0">
+                                  {/* Edit before saving */}
+                                  <button onClick={() => selectProfile(p, researchResult)}
+                                    title="Editar antes de guardar"
+                                    className="p-1.5 rounded text-gray-600 hover:text-violet-400 hover:bg-violet-500/10 transition-colors">
+                                    <Pencil size={11} />
+                                  </button>
+                                  {/* Save / Update directly */}
+                                  <button
+                                    onClick={() => saveFromResearch(p, researchResult)}
+                                    disabled={saving}
+                                    className={cn(
+                                      'flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors disabled:opacity-50',
+                                      exists
+                                        ? 'bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 border border-blue-500/20'
+                                        : 'bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 border border-violet-500/20'
+                                    )}
+                                  >
+                                    {saving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                                    {exists ? 'Actualizar' : 'Guardar'}
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+
+                          {(researchResult.profiles ?? []).length === 0 && (
+                            <p className="text-xs text-gray-500">No se encontraron perfiles sociales para esta empresa</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
