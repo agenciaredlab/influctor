@@ -1,4 +1,20 @@
 /** @type {import('next').NextConfig} */
+
+// MinIO / custom storage hostname (set STORAGE_ENDPOINT in .env.local)
+// e.g. "http://localhost:9000" → hostname "localhost"
+//      "https://storage.mydomain.com" → hostname "storage.mydomain.com"
+function storageHostname() {
+  try {
+    const ep = process.env.STORAGE_ENDPOINT
+    if (!ep) return null
+    return new URL(ep).hostname
+  } catch {
+    return null
+  }
+}
+
+const storageHost = storageHostname()
+
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client', 'prisma'],
@@ -7,18 +23,16 @@ const nextConfig = {
     remotePatterns: [
       // Auth providers
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
-      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },      // Google OAuth avatars
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       // Stock / placeholder
       { protocol: 'https', hostname: 'images.unsplash.com' },
-      // Cloudinary (user-uploaded media)
-      { protocol: 'https', hostname: 'res.cloudinary.com' },
-      // AWS S3 — covers any bucket/region (*.amazonaws.com)
-      { protocol: 'https', hostname: '*.amazonaws.com' },
       // Supabase Storage
       { protocol: 'https', hostname: '*.supabase.co' },
-      // Instagram CDN (for synced media)
+      // Instagram CDN (synced media)
       { protocol: 'https', hostname: '*.cdninstagram.com' },
       { protocol: 'https', hostname: 'scontent.cdninstagram.com' },
+      // MinIO / custom storage (reads STORAGE_ENDPOINT from env)
+      ...(storageHost ? [{ protocol: storageHost === 'localhost' ? 'http' : 'https', hostname: storageHost }] : []),
     ],
   },
 }
