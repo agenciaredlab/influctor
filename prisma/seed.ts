@@ -382,6 +382,26 @@ async function main() {
   await prisma.marketplaceListing.createMany({ data: listings })
   console.log(`Created ${listings.length} marketplace listings`)
 
+  // ── Influencer Profiles ──────────────────────────────────────────────────
+  const influencers = [
+    { name: 'Sofia Vega', handle: '@sofiavega.fit', platform: 'instagram', niche: 'Fitness', followers: 128000, engagement: 5.2, avgViews: 42000, location: 'Madrid, ES', estimatedRate: 800, verified: true, topics: 'fitness,nutrición,lifestyle', recentGrowth: '+2.1K/sem', bio: 'Entrenadora personal & nutricionista. Transformaciones reales.' },
+    { name: 'Carlos Builds', handle: '@carlosbuilds', platform: 'tiktok', niche: 'Negocios', followers: 89000, engagement: 8.4, avgViews: 95000, location: 'México DF', estimatedRate: 600, verified: false, topics: 'emprendimiento,dropshipping,ecommerce', recentGrowth: '+5.3K/sem', bio: 'Emprendedor digital. Construyo negocios online desde 0.' },
+    { name: 'Elena Cooks', handle: '@elenacooks_es', platform: 'instagram', niche: 'Gastronomía', followers: 312000, engagement: 3.8, avgViews: 68000, location: 'Barcelona, ES', estimatedRate: 2200, verified: true, topics: 'cocina,recetas,food', recentGrowth: '+4.1K/sem', bio: 'Chef profesional. Recetas fáciles para el día a día.' },
+    { name: 'David Tech', handle: '@davidtech_ia', platform: 'youtube', niche: 'Tecnología', followers: 245000, engagement: 4.1, avgViews: 87000, location: 'Buenos Aires, AR', estimatedRate: 1800, verified: true, topics: 'IA,tech,productividad', recentGrowth: '+3.8K/sem', bio: 'Exploro el futuro de la tecnología y la IA.' },
+    { name: 'Luna Moda', handle: '@lunamoda_style', platform: 'instagram', niche: 'Moda', followers: 67000, engagement: 6.9, avgViews: 28000, location: 'Colombia', estimatedRate: 450, verified: false, topics: 'moda,outfit,tendencias', recentGrowth: '+1.9K/sem', bio: 'Fashion creator. Looks para cada ocasión y presupuesto.' },
+    { name: 'Alex Finance', handle: '@alexfinancemx', platform: 'tiktok', niche: 'Finanzas', followers: 445000, engagement: 7.2, avgViews: 180000, location: 'México', estimatedRate: 3500, verified: true, topics: 'inversiones,ahorro,crypto', recentGrowth: '+12K/sem', bio: 'Finanzas personales sin complicaciones para millenials.' },
+    { name: 'Marco Wellness', handle: '@marcowellness', platform: 'instagram', niche: 'Bienestar', followers: 54000, engagement: 6.1, avgViews: 22000, location: 'Chile', estimatedRate: 350, verified: false, topics: 'mindfulness,meditación,bienestar', recentGrowth: '+1.2K/sem', bio: 'Psicólogo y coach de bienestar mental.' },
+    { name: 'Valeria Eats', handle: '@valeriaeats', platform: 'tiktok', niche: 'Gastronomía', followers: 198000, engagement: 9.3, avgViews: 320000, location: 'Madrid, ES', estimatedRate: 1400, verified: true, topics: 'recetas,foodie,restaurantes', recentGrowth: '+8.7K/sem', bio: 'Foodie profesional. Si tiene buena pinta, lo pruebo.' },
+    { name: 'Rodrigo Dev', handle: '@rodrigodev', platform: 'youtube', niche: 'Tecnología', followers: 78000, engagement: 5.5, avgViews: 41000, location: 'Colombia', estimatedRate: 700, verified: false, topics: 'programación,web,startup', recentGrowth: '+2.4K/sem', bio: 'Desarrollador full-stack. Enseño a programar desde cero.' },
+    { name: 'Camila Travel', handle: '@camila.travel', platform: 'instagram', niche: 'Travel', followers: 156000, engagement: 4.7, avgViews: 54000, location: 'Argentina', estimatedRate: 1100, verified: true, topics: 'viajes,fotografía,adventure', recentGrowth: '+3.1K/sem', bio: 'Viajera profesional. 40 países y contando.' },
+    { name: 'Nico Gaming', handle: '@nicogaming_es', platform: 'tiktok', niche: 'Gaming', followers: 234000, engagement: 11.2, avgViews: 480000, location: 'España', estimatedRate: 1600, verified: true, topics: 'gaming,esports,streaming', recentGrowth: '+15K/sem', bio: 'Pro gamer & streamer. Clips, humor y competitivo.' },
+    { name: 'Diana Skincare', handle: '@diana.skincare', platform: 'instagram', niche: 'Belleza', followers: 91000, engagement: 5.8, avgViews: 38000, location: 'México', estimatedRate: 650, verified: false, topics: 'skincare,belleza,rutinas', recentGrowth: '+2.8K/sem', bio: 'Cosmetóloga. Rutinas de skincare sin mentiras.' },
+  ]
+
+  await prisma.influencerProfile.deleteMany({})
+  await prisma.influencerProfile.createMany({ data: influencers })
+  console.log(`Created ${influencers.length} influencer profiles`)
+
   console.log('Seeding complete!')
   console.log('\nDemo user created:')
   console.log('Email: demo@influctor.app')
