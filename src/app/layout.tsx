@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import SessionProvider from '@/components/providers/SessionProvider'
 
 export const metadata: Metadata = {
   title: 'Influctor - Plataforma de Crecimiento en Redes Sociales',
@@ -17,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className="bg-[#07070f] text-white antialiased">
-        {children}
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   )

@@ -1,0 +1,30 @@
+export { default } from 'next-auth/middleware'
+
+export const config = {
+  matcher: [
+    '/dashboard/:path*',
+    '/goals/:path*',
+    '/campaigns/:path*',
+    '/analytics/:path*',
+    '/calendar/:path*',
+    '/deals/:path*',
+    '/marketplace/:path*',
+    '/monetization/:path*',
+    '/viral-lab/:path*',
+    '/ai-studio/:path*',
+    '/scripts/:path*',
+    '/repurpose/:path*',
+    '/hashtags/:path*',
+    '/ab-test/:path*',
+    '/competitors/:path*',
+    '/niche-finder/:path*',
+    '/outreach/:path*',
+    '/playbooks/:path*',
+    '/reports/:path*',
+    '/contracts/:path*',
+    '/influencer-discovery/:path*',
+    '/business/:path*',
+    '/settings/:path*',
+    '/pricing/:path*',
+  ],
+}
