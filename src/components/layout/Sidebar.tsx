@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import {
   LayoutDashboard, Target, Megaphone, BarChart3, Sparkles,
   Settings, Zap, ChevronRight, Flame, DollarSign, Handshake,
@@ -97,8 +98,20 @@ function NavSection({ title, items, pathname }: { title: string; items: typeof c
   )
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  free: 'Plan Free',
+  creator: 'Plan Creator',
+  pro: 'Plan Pro',
+}
+
 export default function Sidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+
+  const userName = session?.user?.name || session?.user?.email?.split('@')[0] || 'Usuario'
+  const userPlan = (session?.user as any)?.plan ?? 'free'
+  const planLabel = PLAN_LABELS[userPlan] ?? 'Plan Free'
+  const initial = userName.charAt(0).toUpperCase()
 
   return (
     <aside className="fixed left-0 top-0 h-full w-56 bg-[#09090f] border-r border-[#1a1a2e] flex flex-col z-40 overflow-hidden">
@@ -131,23 +144,25 @@ export default function Sidebar() {
 
       {/* User + Plan badge */}
       <div className="px-2 py-2 border-t border-[#1a1a2e] flex-shrink-0 space-y-1.5">
-        {/* Upgrade CTA for free users */}
-        <Link
-          href="/pricing"
-          className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-gradient-to-r from-violet-600/20 to-purple-600/10 border border-violet-500/20 hover:border-violet-500/40 transition-all group"
-        >
-          <Zap size={11} className="text-violet-400 flex-shrink-0" />
-          <span className="text-[10px] font-medium text-violet-300 flex-1">Actualizar plan</span>
-          <ChevronRight size={9} className="text-violet-500 group-hover:text-violet-300" />
-        </Link>
-        <div className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 cursor-pointer transition-all">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">A</div>
+        {/* Upgrade CTA — hidden for Pro users */}
+        {userPlan !== 'pro' && (
+          <Link
+            href="/pricing"
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-gradient-to-r from-violet-600/20 to-purple-600/10 border border-violet-500/20 hover:border-violet-500/40 transition-all group"
+          >
+            <Zap size={11} className="text-violet-400 flex-shrink-0" />
+            <span className="text-[10px] font-medium text-violet-300 flex-1">Actualizar plan</span>
+            <ChevronRight size={9} className="text-violet-500 group-hover:text-violet-300" />
+          </Link>
+        )}
+        <Link href="/settings" className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 transition-all">
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">{initial}</div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-gray-200 truncate">Alex Creator</div>
-            <div className="text-[9px] text-gray-600 truncate">Plan Free</div>
+            <div className="text-xs font-medium text-gray-200 truncate">{userName}</div>
+            <div className="text-[9px] text-gray-600 truncate">{planLabel}</div>
           </div>
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-        </div>
+        </Link>
       </div>
     </aside>
   )
