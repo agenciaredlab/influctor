@@ -2,8 +2,14 @@
 
 import { useState } from 'react'
 import { Search, Plus, TrendingUp, TrendingDown, Minus, Eye, Heart, MessageCircle,
-  Users, BarChart2, Trash2, Zap, AlertCircle, Pencil, Loader2, X, Check } from 'lucide-react'
+  Users, BarChart2, Trash2, Zap, AlertCircle, Pencil, Loader2, X, Check,
+  Globe, Sparkles, ExternalLink, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+const PLATFORM_ICONS_FULL: Record<string, string> = {
+  instagram: '📸 Instagram', tiktok: '🎵 TikTok', youtube: '▶️ YouTube',
+  linkedin: '💼 LinkedIn', twitter: '🐦 Twitter/X', facebook: '👍 Facebook',
+}
 
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: 'text-pink-400 bg-pink-500/10',
@@ -110,18 +116,84 @@ function MetricsFields({ form, set }: { form: MetricForm; set: (k: string, v: st
   )
 }
 
+interface ResearchProfile {
+  platform: string
+  handle: string
+  profileUrl: string
+  estimatedFollowers: number | null
+  followersNote: string | null
+  realFollowers: number | null
+  realFans: number | null
+  dataSource: string | null
+}
+
+interface ResearchResult {
+  found: boolean
+  companyName?: string
+  website?: string | null
+  description?: string | null
+  profiles?: ResearchProfile[]
+}
+
 interface Props { initialCompetitors: any[] }
 
 export default function CompetitorsClient({ initialCompetitors }: Props) {
   const [competitors, setCompetitors] = useState<Competitor[]>(initialCompetitors.map(mapFromDb))
-  const [showAdd, setShowAdd]     = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [selected, setSelected]   = useState<Competitor | null>(null)
-  const [search, setSearch]       = useState('')
-  const [form, setForm]           = useState<MetricForm>(EMPTY_FORM)
-  const [editForm, setEditForm]   = useState<MetricForm>(EMPTY_FORM)
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState('')
+  const [showAdd, setShowAdd]         = useState(false)
+  const [editingId, setEditingId]     = useState<string | null>(null)
+  const [selected, setSelected]       = useState<Competitor | null>(null)
+  const [search, setSearch]           = useState('')
+  const [form, setForm]               = useState<MetricForm>(EMPTY_FORM)
+  const [editForm, setEditForm]       = useState<MetricForm>(EMPTY_FORM)
+  const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState('')
+
+  // Research state
+  const [researchQuery, setResearchQuery] = useState('')
+  const [researching, setResearching]     = useState(false)
+  const [researchResult, setResearchResult] = useState<ResearchResult | null>(null)
+  const [researchError, setResearchError]   = useState('')
+
+  async function handleResearch(e: React.FormEvent) {
+    e.preventDefault()
+    if (!researchQuery.trim()) return
+    setResearching(true)
+    setResearchResult(null)
+    setResearchError('')
+    try {
+      const res = await fetch('/api/competitors/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: researchQuery }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResearchResult(data)
+    } catch (err: any) {
+      setResearchError(err.message)
+    }
+    setResearching(false)
+  }
+
+  function selectProfile(profile: ResearchProfile, company: ResearchResult) {
+    const followers = profile.realFollowers ?? profile.estimatedFollowers ?? 0
+    setForm({
+      handle:       profile.handle || '',
+      platform:     profile.platform === 'facebook' ? 'instagram' : profile.platform,
+      niche:        '',
+      notes:        profile.followersNote
+        ? `Fuente: IA${profile.dataSource === 'facebook_graph_api' ? ' + Facebook Graph API' : ''}. ${profile.followersNote}`
+        : `Fuente: IA${profile.dataSource === 'facebook_graph_api' ? ' + Facebook Graph API' : ''}`,
+      followers:    String(followers),
+      engagement:   '',
+      postsPerWeek: '',
+      avgLikes:     '',
+      avgComments:  '',
+      topFormat:    'Reels',
+    })
+    setResearchResult(null)
+    setResearchQuery('')
+  }
 
   const filtered = competitors.filter(c =>
     c.handle.toLowerCase().includes(search.toLowerCase()) ||
@@ -485,9 +557,92 @@ export default function CompetitorsClient({ initialCompetitors }: Props) {
           <div className="bg-[#13131f] border border-[#1a1a2e] rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-lg font-bold text-white">Agregar Competidor</h2>
-              <button onClick={() => { setShowAdd(false); setError('') }} className="text-gray-500 hover:text-white"><X size={18} /></button>
+              <button onClick={() => { setShowAdd(false); setError(''); setResearchResult(null); setResearchQuery('') }} className="text-gray-500 hover:text-white"><X size={18} /></button>
             </div>
-            <p className="text-xs text-gray-500 mb-5">Ingresa los datos del competidor que encontraste en su perfil</p>
+            <p className="text-xs text-gray-500 mb-4">Busca la empresa con IA o ingresa los datos manualmente</p>
+
+            {/* ── AI Research panel ── */}
+            <div className="mb-5 p-3 bg-violet-900/10 border border-violet-500/20 rounded-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={13} className="text-violet-400" />
+                <span className="text-xs font-medium text-violet-300">Buscar con IA</span>
+              </div>
+              <form onSubmit={handleResearch} className="flex gap-2">
+                <input
+                  value={researchQuery}
+                  onChange={e => setResearchQuery(e.target.value)}
+                  placeholder="Nike, Apple, Zara, tudominio.com..."
+                  className="flex-1 px-3 py-2 bg-[#0d0d1a] border border-violet-500/20 rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500/50"
+                />
+                <button type="submit" disabled={researching || !researchQuery.trim()}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors disabled:opacity-50">
+                  {researching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                  {researching ? 'Buscando...' : 'Buscar'}
+                </button>
+              </form>
+
+              {researchError && (
+                <p className="text-xs text-red-400 mt-2">{researchError}</p>
+              )}
+
+              {/* Research results */}
+              {researchResult && (
+                <div className="mt-3 space-y-2">
+                  {!researchResult.found ? (
+                    <p className="text-xs text-gray-500">No se encontró información sobre "{researchQuery}"</p>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-2 pb-2 border-b border-violet-500/10">
+                        <Globe size={12} className="text-violet-400 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-xs font-medium text-white">{researchResult.companyName}</span>
+                          {researchResult.website && (
+                            <span className="text-[10px] text-gray-500 ml-2">{researchResult.website}</span>
+                          )}
+                          {researchResult.description && (
+                            <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">{researchResult.description}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-[10px] text-violet-400 font-medium">Perfiles encontrados — elige uno para agregar:</p>
+
+                      {(researchResult.profiles ?? []).map((p, i) => {
+                        const followers = p.realFollowers ?? p.estimatedFollowers
+                        const isReal    = p.dataSource === 'facebook_graph_api'
+                        return (
+                          <button key={i} onClick={() => selectProfile(p, researchResult)}
+                            className="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg bg-[#0d0d1a] border border-[#1a1a2e] hover:border-violet-500/30 transition-all group">
+                            <span className="text-sm">{PLATFORM_ICONS_FULL[p.platform]?.split(' ')[0] ?? '🌐'}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-gray-200">{p.handle}</span>
+                                {isReal && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">REAL</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-gray-600">
+                                {PLATFORM_ICONS_FULL[p.platform]?.split(' ').slice(1).join(' ')}
+                                {followers != null && (
+                                  <span className={cn('ml-2', isReal ? 'text-emerald-400' : 'text-gray-500')}>
+                                    {formatK(followers)} seguidores{!isReal && ' (estimado)'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <ChevronRight size={12} className="text-gray-600 group-hover:text-violet-400 transition-colors flex-shrink-0" />
+                          </button>
+                        )
+                      })}
+
+                      {(researchResult.profiles ?? []).length === 0 && (
+                        <p className="text-xs text-gray-500">No se encontraron perfiles sociales para esta empresa</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             {error && (
               <div className="flex items-center gap-2 p-3 mb-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
