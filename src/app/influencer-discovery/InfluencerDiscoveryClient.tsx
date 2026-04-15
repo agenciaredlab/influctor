@@ -1,63 +1,244 @@
 'use client'
 
-import { useState } from 'react'
-import { Search, Users, Zap, DollarSign, Star, Filter, MapPin, ExternalLink, BarChart2, Heart, MessageCircle, CheckCircle, Plus, X } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Search, Users, Zap, DollarSign, Filter, MapPin, ExternalLink, BarChart2, CheckCircle, X, Plus, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UpgradeGate from '@/components/ui/UpgradeGate'
 
-const DEMO_INFLUENCERS = [
-  { id: '1', name: 'Sofia Vega', handle: '@sofiavega.fit', platform: 'instagram', niche: 'Fitness', followers: 128000, engagement: 5.2, avgViews: 42000, location: 'Madrid, ES', tier: 'Micro', rate: 800, verified: true, topics: ['fitness', 'nutrición', 'lifestyle'], recentGrowth: '+2.1K/sem', bio: 'Entrenadora personal & nutricionista. Transformaciones reales.' },
-  { id: '2', name: 'Carlos Builds', handle: '@carlosbuilds', platform: 'tiktok', niche: 'Negocios', followers: 89000, engagement: 8.4, avgViews: 95000, location: 'México DF', tier: 'Micro', rate: 600, verified: false, topics: ['emprendimiento', 'dropshipping', 'ecommerce'], recentGrowth: '+5.3K/sem', bio: 'Emprendedor digital. Construyo negocios online desde 0.' },
-  { id: '3', name: 'Elena Cooks', handle: '@elenacooks_es', platform: 'instagram', niche: 'Gastronomía', followers: 312000, engagement: 3.8, avgViews: 68000, location: 'Barcelona, ES', tier: 'Macro', rate: 2200, verified: true, topics: ['cocina', 'recetas', 'food'], recentGrowth: '+4.1K/sem', bio: 'Chef profesional. Recetas fáciles para el día a día.' },
-  { id: '4', name: 'David Tech', handle: '@davidtech_ia', platform: 'youtube', niche: 'Tecnología', followers: 245000, engagement: 4.1, avgViews: 87000, location: 'Buenos Aires, AR', tier: 'Macro', rate: 1800, verified: true, topics: ['IA', 'tech', 'productividad'], recentGrowth: '+3.8K/sem', bio: 'Exploro el futuro de la tecnología y la IA.' },
-  { id: '5', name: 'Luna Moda', handle: '@lunamoda_style', platform: 'instagram', niche: 'Moda', followers: 67000, engagement: 6.9, avgViews: 28000, location: 'Colombia', tier: 'Micro', rate: 450, verified: false, topics: ['moda', 'outfit', 'tendencias'], recentGrowth: '+1.9K/sem', bio: 'Fashion creator. Looks para cada ocasión y presupuesto.' },
-  { id: '6', name: 'Alex Finance', handle: '@alexfinancemx', platform: 'tiktok', niche: 'Finanzas', followers: 445000, engagement: 7.2, avgViews: 180000, location: 'México', tier: 'Macro', rate: 3500, verified: true, topics: ['inversiones', 'ahorro', 'crypto'], recentGrowth: '+12K/sem', bio: 'Finanzas personales sin complicaciones para millenials.' },
-]
+interface InfluencerProfile {
+  id: string
+  name: string
+  handle: string
+  platform: string
+  niche: string | null
+  followers: number
+  engagement: number
+  avgViews: number
+  estimatedRate: number
+  location: string | null
+  bio: string | null
+  topics: string | null
+  verified: boolean
+  recentGrowth: string | null
+  profileUrl: string | null
+}
 
-const TIERS = ['Todos', 'Nano (<10K)', 'Micro (10-100K)', 'Macro (100K-1M)', 'Mega (>1M)']
-const NICHES = ['Todos', 'Fitness', 'Negocios', 'Gastronomía', 'Tecnología', 'Moda', 'Finanzas', 'Travel', 'Gaming']
-const PLATFORMS = ['Todas', 'instagram', 'tiktok', 'youtube', 'linkedin']
+const TIERS = ['Todos', 'Nano (<10K)', 'Micro (10–100K)', 'Macro (100K–1M)', 'Mega (>1M)']
+const NICHES = ['Todos', 'Fitness', 'Negocios', 'Gastronomía', 'Tecnología', 'Moda', 'Finanzas', 'Travel', 'Gaming', 'Belleza', 'Bienestar', 'Diseño']
+const PLATFORMS = ['Todas', 'instagram', 'tiktok', 'youtube', 'linkedin', 'twitter']
 
 const TIER_COLORS: Record<string, string> = {
-  'Nano': 'text-gray-400 bg-gray-500/10',
-  'Micro': 'text-blue-400 bg-blue-500/10',
-  'Macro': 'text-violet-400 bg-violet-500/10',
-  'Mega': 'text-amber-400 bg-amber-500/10',
+  Nano:  'text-gray-400 bg-gray-500/10',
+  Micro: 'text-blue-400 bg-blue-500/10',
+  Macro: 'text-violet-400 bg-violet-500/10',
+  Mega:  'text-amber-400 bg-amber-500/10',
+}
+
+function getTier(followers: number) {
+  if (followers >= 1_000_000) return 'Mega'
+  if (followers >= 100_000)   return 'Macro'
+  if (followers >= 10_000)    return 'Micro'
+  return 'Nano'
 }
 
 function formatK(n: number) {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'K'
   return String(n)
 }
 
-export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
+const PLATFORM_ICONS: Record<string, string> = {
+  instagram: '📸', tiktok: '🎵', youtube: '▶️', linkedin: '💼', twitter: '🐦',
+}
+
+interface AddModalProps {
+  onClose: () => void
+  onAdded: (profile: InfluencerProfile) => void
+}
+
+function AddInfluencerModal({ onClose, onAdded }: AddModalProps) {
+  const [form, setForm] = useState({
+    name: '', handle: '', platform: 'instagram', niche: '', followers: '',
+    engagement: '', avgViews: '', estimatedRate: '', location: '', bio: '', topics: '',
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  function set(key: string, value: string) {
+    setForm(f => ({ ...f, [key]: value }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/influencer-discovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); return }
+      onAdded(data.profile)
+      onClose()
+    } catch {
+      setError('Error al guardar')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#13131f] border border-[#1a1a2e] rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-semibold text-white">Agregar Influencer</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X size={18} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs text-gray-500 mb-1 block">Nombre *</label>
+              <input required value={form.name} onChange={e => set('name', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="Nombre completo o artístico" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Handle *</label>
+              <input required value={form.handle} onChange={e => set('handle', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="@handle" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Plataforma *</label>
+              <select value={form.platform} onChange={e => set('platform', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50">
+                {PLATFORMS.filter(p => p !== 'Todas').map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Nicho</label>
+              <select value={form.niche} onChange={e => set('niche', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50">
+                <option value="">Sin categoría</option>
+                {NICHES.filter(n => n !== 'Todos').map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Seguidores</label>
+              <input type="number" value={form.followers} onChange={e => set('followers', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="128000" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Engagement %</label>
+              <input type="number" step="0.1" value={form.engagement} onChange={e => set('engagement', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="4.5" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Avg views</label>
+              <input type="number" value={form.avgViews} onChange={e => set('avgViews', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="42000" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Tarifa est. (USD/post)</label>
+              <input type="number" value={form.estimatedRate} onChange={e => set('estimatedRate', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="800" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Ubicación</label>
+              <input value={form.location} onChange={e => set('location', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="Madrid, ES" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Topics (separados por coma)</label>
+              <input value={form.topics} onChange={e => set('topics', e.target.value)}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50"
+                placeholder="fitness,nutrición,lifestyle" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-gray-500 mb-1 block">Bio</label>
+              <textarea value={form.bio} onChange={e => set('bio', e.target.value)} rows={2}
+                className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 focus:outline-none focus:border-violet-500/50 resize-none"
+                placeholder="Descripción breve del influencer..." />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">{error}</p>}
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2 rounded-lg border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-sm transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              {loading ? 'Guardando...' : 'Agregar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default function InfluencerDiscoveryClient({
+  plan,
+  initialProfiles,
+}: {
+  plan: string
+  initialProfiles: InfluencerProfile[]
+}) {
+  const [profiles, setProfiles] = useState<InfluencerProfile[]>(initialProfiles)
   const [search, setSearch] = useState('')
   const [niche, setNiche] = useState('Todos')
   const [platform, setPlatform] = useState('Todas')
   const [tier, setTier] = useState('Todos')
-  const [selected, setSelected] = useState<typeof DEMO_INFLUENCERS[0] | null>(null)
+  const [selected, setSelected] = useState<InfluencerProfile | null>(null)
   const [compared, setCompared] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   const isPro = plan === 'pro'
 
-  const filtered = DEMO_INFLUENCERS.filter(inf => {
-    if (search && !inf.name.toLowerCase().includes(search.toLowerCase()) && !inf.handle.toLowerCase().includes(search.toLowerCase()) && !inf.niche.toLowerCase().includes(search.toLowerCase())) return false
-    if (niche !== 'Todos' && inf.niche !== niche) return false
-    if (platform !== 'Todas' && inf.platform !== platform) return false
-    if (tier !== 'Todos' && !tier.toLowerCase().includes(inf.tier.toLowerCase())) return false
-    return true
-  })
+  const filtered = useMemo(() => {
+    return profiles.filter(inf => {
+      if (search) {
+        const q = search.toLowerCase()
+        const match = inf.name.toLowerCase().includes(q)
+          || inf.handle.toLowerCase().includes(q)
+          || (inf.niche ?? '').toLowerCase().includes(q)
+          || (inf.topics ?? '').toLowerCase().includes(q)
+        if (!match) return false
+      }
+      if (niche !== 'Todos' && inf.niche !== niche) return false
+      if (platform !== 'Todas' && inf.platform !== platform) return false
+      if (tier !== 'Todos') {
+        const t = getTier(inf.followers)
+        if (!tier.toLowerCase().includes(t.toLowerCase())) return false
+      }
+      return true
+    })
+  }, [profiles, search, niche, platform, tier])
 
-  // Non-pro users see a teaser of 3 results
   const visibleList = isPro ? filtered : filtered.slice(0, 3)
 
   function toggleCompare(id: string) {
-    setCompared(prev => prev.includes(id) ? prev.filter(c => c !== id) : prev.length < 3 ? [...prev, id] : prev)
+    setCompared(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id)
+        : prev.length < 3 ? [...prev, id]
+        : prev
+    )
   }
 
-  const compareList = DEMO_INFLUENCERS.filter(i => compared.includes(i.id))
+  const compareList = profiles.filter(i => compared.includes(i.id))
 
   return (
     <div className="space-y-6">
@@ -80,6 +261,14 @@ export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
           >
             <Filter size={13} /> Filtros
           </button>
+          {isPro && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm border border-violet-500/30 bg-violet-600/10 text-violet-300 hover:bg-violet-600/20 transition-colors"
+            >
+              <Plus size={13} /> Agregar
+            </button>
+          )}
         </div>
 
         {showFilters && (
@@ -108,7 +297,7 @@ export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
 
       {/* Compare bar */}
       {compared.length > 0 && (
-        <div className="bg-violet-900/20 border border-violet-500/30 rounded-xl p-3 flex items-center gap-3">
+        <div className="bg-violet-900/20 border border-violet-500/30 rounded-xl p-3 flex items-center gap-3 flex-wrap">
           <span className="text-xs text-violet-300 font-medium">Comparando {compared.length}/3:</span>
           {compareList.map(inf => (
             <div key={inf.id} className="flex items-center gap-1.5 bg-violet-500/20 rounded-full px-2.5 py-1">
@@ -116,11 +305,6 @@ export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
               <button onClick={() => toggleCompare(inf.id)} className="text-violet-400 hover:text-white"><X size={10} /></button>
             </div>
           ))}
-          {compared.length >= 2 && (
-            <button onClick={() => setSelected(null)} className="ml-auto text-xs bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg transition-colors">
-              Ver comparativa
-            </button>
-          )}
         </div>
       )}
 
@@ -128,74 +312,106 @@ export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
         {/* List */}
         <div className="lg:col-span-2 space-y-3">
           <div className="text-xs text-gray-500">
-            {isPro ? `${filtered.length} influencers encontrados` : `Mostrando 3 de ${filtered.length} resultados`}
+            {isPro
+              ? `${filtered.length} influencer${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`
+              : `Mostrando 3 de ${filtered.length} resultados`}
           </div>
-          {visibleList.map(inf => (
-            <div
-              key={inf.id}
-              className={cn(
-                'bg-[#13131f] border rounded-xl p-4 cursor-pointer transition-all hover:border-violet-500/30',
-                selected?.id === inf.id ? 'border-violet-500/40' : 'border-[#1a1a2e]'
+
+          {visibleList.length === 0 ? (
+            <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-10 text-center">
+              <Users size={28} className="mx-auto mb-3 text-gray-600" />
+              <p className="text-sm text-gray-500 mb-2">No se encontraron influencers</p>
+              {isPro && (
+                <button onClick={() => setShowAddModal(true)} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                  + Agregar el primero
+                </button>
               )}
-              onClick={() => setSelected(inf)}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-white font-bold text-base flex-shrink-0">
-                  {inf.name[0]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-semibold text-white text-sm">{inf.name}</span>
-                    {inf.verified && <CheckCircle size={12} className="text-blue-400" />}
-                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', TIER_COLORS[inf.tier])}>{inf.tier}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 mb-1">{inf.handle} · {inf.platform} · <MapPin className="inline" size={9} /> {inf.location}</div>
-                  <div className="flex flex-wrap gap-1">
-                    {inf.topics.map(t => <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-[#1a1a2e] text-gray-500">#{t}</span>)}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-base font-bold text-white">{formatK(inf.followers)}</div>
-                  <div className="text-[10px] text-gray-500">seguidores</div>
-                  <div className="text-xs text-emerald-400 mt-1">{inf.recentGrowth}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[#1a1a2e]">
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <Zap size={10} className="text-amber-400" /> {inf.engagement}% eng
-                </div>
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <BarChart2 size={10} className="text-blue-400" /> {formatK(inf.avgViews)} avg
-                </div>
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <DollarSign size={10} className="text-emerald-400" /> ~${inf.rate}/post
-                </div>
-                <div className="ml-auto flex items-center gap-1.5">
-                  <button
-                    onClick={e => { e.stopPropagation(); toggleCompare(inf.id) }}
-                    className={cn('text-xs px-2.5 py-1 rounded-lg border transition-colors', compared.includes(inf.id) ? 'bg-violet-600/20 border-violet-500/30 text-violet-300' : 'border-[#1a1a2e] text-gray-500 hover:text-gray-300')}
-                  >
-                    {compared.includes(inf.id) ? '✓ Comparando' : '+ Comparar'}
-                  </button>
-                </div>
-              </div>
             </div>
-          ))}
+          ) : (
+            visibleList.map(inf => {
+              const t = getTier(inf.followers)
+              return (
+                <div
+                  key={inf.id}
+                  onClick={() => setSelected(inf)}
+                  className={cn(
+                    'bg-[#13131f] border rounded-xl p-4 cursor-pointer transition-all hover:border-violet-500/30',
+                    selected?.id === inf.id ? 'border-violet-500/40' : 'border-[#1a1a2e]'
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-white font-bold text-base flex-shrink-0">
+                      {inf.name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-semibold text-white text-sm">{inf.name}</span>
+                        {inf.verified && <CheckCircle size={12} className="text-blue-400" />}
+                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', TIER_COLORS[t])}>{t}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mb-1">
+                        {inf.handle} · {PLATFORM_ICONS[inf.platform] ?? ''} {inf.platform}
+                        {inf.location && <> · <MapPin className="inline" size={9} /> {inf.location}</>}
+                      </div>
+                      {inf.topics && (
+                        <div className="flex flex-wrap gap-1">
+                          {inf.topics.split(',').map(t => (
+                            <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-[#1a1a2e] text-gray-500">#{t.trim()}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-base font-bold text-white">{formatK(inf.followers)}</div>
+                      <div className="text-[10px] text-gray-500">seguidores</div>
+                      {inf.recentGrowth && (
+                        <div className="text-xs text-emerald-400 mt-1">{inf.recentGrowth}</div>
+                      )}
+                    </div>
+                  </div>
 
-          {/* Upgrade gate when not pro */}
-          {!isPro && (
+                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[#1a1a2e]">
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Zap size={10} className="text-amber-400" /> {inf.engagement}% eng
+                    </div>
+                    {inf.avgViews > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <BarChart2 size={10} className="text-blue-400" /> {formatK(inf.avgViews)} avg
+                      </div>
+                    )}
+                    {inf.estimatedRate > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <DollarSign size={10} className="text-emerald-400" /> ~${inf.estimatedRate}/post
+                      </div>
+                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleCompare(inf.id) }}
+                      className={cn('ml-auto text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                        compared.includes(inf.id)
+                          ? 'bg-violet-600/20 border-violet-500/30 text-violet-300'
+                          : 'border-[#1a1a2e] text-gray-500 hover:text-gray-300'
+                      )}
+                    >
+                      {compared.includes(inf.id) ? '✓ Comparando' : '+ Comparar'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+
+          {!isPro && filtered.length > 0 && (
             <UpgradeGate
               plan={plan}
               requiredPlan="pro"
               feature="Influencer Discovery Completo"
-              description={`Accede a la base de datos completa de ${DEMO_INFLUENCERS.length}+ influencers con filtros avanzados, comparativas y datos de contacto.`}
+              description={`Accede a la base de datos completa de ${profiles.length}+ influencers con filtros avanzados, comparativas y datos de contacto.`}
               variant="block"
             />
           )}
         </div>
 
-        {/* Detail */}
+        {/* Detail panel */}
         <div>
           {selected ? (
             <div className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4 space-y-4 sticky top-24">
@@ -208,19 +424,23 @@ export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
                     <h3 className="font-bold text-white">{selected.name}</h3>
                     {selected.verified && <CheckCircle size={13} className="text-blue-400" />}
                   </div>
-                  <div className="text-xs text-gray-500">{selected.handle}</div>
-                  <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><MapPin size={9} /> {selected.location}</div>
+                  <div className="text-xs text-gray-500">{selected.handle} · {selected.platform}</div>
+                  {selected.location && (
+                    <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                      <MapPin size={9} /> {selected.location}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400">{selected.bio}</p>
+              {selected.bio && <p className="text-xs text-gray-400">{selected.bio}</p>}
 
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { label: 'Seguidores', value: formatK(selected.followers) },
                   { label: 'Engagement', value: `${selected.engagement}%` },
-                  { label: 'Avg views', value: formatK(selected.avgViews) },
-                  { label: 'Tarifa est.', value: `$${selected.rate}` },
+                  ...(selected.avgViews > 0 ? [{ label: 'Avg views', value: formatK(selected.avgViews) }] : []),
+                  ...(selected.estimatedRate > 0 ? [{ label: 'Tarifa est.', value: `$${selected.estimatedRate}` }] : []),
                 ].map(stat => (
                   <div key={stat.label} className="bg-[#0d0d1a] rounded-lg p-2.5 text-center">
                     <div className="text-sm font-bold text-white">{stat.value}</div>
@@ -229,13 +449,25 @@ export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
                 ))}
               </div>
 
+              {selected.topics && (
+                <div className="flex flex-wrap gap-1">
+                  {selected.topics.split(',').map(t => (
+                    <span key={t} className="text-[9px] px-1.5 py-0.5 rounded bg-[#1a1a2e] text-gray-500">#{t.trim()}</span>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-1.5">
-                <button className="w-full py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2">
-                  <ExternalLink size={13} /> Ver perfil
-                </button>
-                <button className="w-full py-2 rounded-lg border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-sm transition-colors">
-                  Contactar
-                </button>
+                {selected.profileUrl ? (
+                  <a href={selected.profileUrl} target="_blank" rel="noopener noreferrer"
+                    className="w-full py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                    <ExternalLink size={13} /> Ver perfil
+                  </a>
+                ) : (
+                  <button disabled className="w-full py-2 rounded-lg bg-violet-600/30 text-gray-500 text-sm cursor-not-allowed flex items-center justify-center gap-2">
+                    <ExternalLink size={13} /> Sin enlace
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -246,6 +478,13 @@ export default function InfluencerDiscoveryClient({ plan }: { plan: string }) {
           )}
         </div>
       </div>
+
+      {showAddModal && (
+        <AddInfluencerModal
+          onClose={() => setShowAddModal(false)}
+          onAdded={profile => setProfiles(prev => [profile, ...prev])}
+        />
+      )}
     </div>
   )
 }
