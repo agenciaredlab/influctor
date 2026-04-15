@@ -55,10 +55,6 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
   )
 }
 
-function generateMockScores(): Record<string, number> {
-  return Object.fromEntries(SCORE_LABELS.map(l => [l, Math.floor(Math.random() * 30) + 60]))
-}
-
 function avg(scores: Record<string, number>) {
   const vals = Object.values(scores)
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
@@ -70,6 +66,7 @@ export default function ABTestClient() {
   const [toneA, setToneA] = useState('casual')
   const [toneB, setToneB] = useState('urgency')
   const [loading, setLoading] = useState(false)
+  const [loadingManual, setLoadingManual] = useState(false)
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [error, setError] = useState('')
   const [voted, setVoted] = useState<string | null>(null)
@@ -87,49 +84,27 @@ export default function ABTestClient() {
     const toneALabel = CAPTION_TONES.find(t => t.id === toneA)?.label || toneA
     const toneBLabel = CAPTION_TONES.find(t => t.id === toneB)?.label || toneB
 
-    const prompt = `Genera 2 versiones de caption para ${platform} sobre este tema:
-"${topic}"
-
-VERSIÓN A — Tono ${toneALabel}:
-Crea un caption con este tono específico. Incluye emojis, hashtags y un CTA claro.
-
-VERSIÓN B — Tono ${toneBLabel}:
-Crea un caption con este tono específico. Incluye emojis, hashtags y un CTA claro.
-
-Luego analiza cuál versión tiene mayor potencial de engagement y por qué.
-
-Formato:
-=== VERSIÓN A ===
-[caption]
-
-=== VERSIÓN B ===
-[caption]
-
-=== ANÁLISIS ===
-[análisis comparativo de cuál funciona mejor y por qué]`
-
     try {
-      const res = await fetch('/api/ai/generate', {
+      const res = await fetch('/api/ab-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'caption', fields: { topic: prompt, platform, tone: toneA } }),
+        body: JSON.stringify({ mode: 'generate', topic, toneA: toneALabel, toneB: toneBLabel, platform }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error')
 
-      const raw: string = data.result || ''
-      const scoresA = generateMockScores()
-      const scoresB = generateMockScores()
+      const scoresA = data.captionA?.scores ?? {}
+      const scoresB = data.captionB?.scores ?? {}
 
       const captions: Caption[] = [
-        { id: 'A', text: raw, tone: toneA, scores: scoresA, totalScore: avg(scoresA), votes: 0 },
-        { id: 'B', text: `[Segunda versión — ${toneBLabel}]\n\n` + raw.slice(0, 200) + '...', tone: toneB, scores: scoresB, totalScore: avg(scoresB), votes: 0 },
+        { id: 'A', text: data.captionA?.text ?? '', tone: toneA, scores: scoresA, totalScore: avg(scoresA), votes: 0 },
+        { id: 'B', text: data.captionB?.text ?? '', tone: toneB, scores: scoresB, totalScore: avg(scoresB), votes: 0 },
       ]
 
       setTestResult({
-        winner: captions[0].totalScore >= captions[1].totalScore ? 'A' : 'B',
+        winner: data.winner ?? (captions[0].totalScore >= captions[1].totalScore ? 'A' : 'B'),
         captions,
-        analysis: raw,
+        analysis: data.analysis ?? '',
       })
     } catch (e: any) {
       setError(e.message)
@@ -138,20 +113,39 @@ Formato:
     }
   }
 
-  function analyzeManual() {
+  async function analyzeManual() {
     if (!manualA.trim() || !manualB.trim()) return
-    const scoresA = generateMockScores()
-    const scoresB = generateMockScores()
-    const captions: Caption[] = [
-      { id: 'A', text: manualA, tone: 'custom', scores: scoresA, totalScore: avg(scoresA), votes: 0 },
-      { id: 'B', text: manualB, tone: 'custom', scores: scoresB, totalScore: avg(scoresB), votes: 0 },
-    ]
-    setTestResult({
-      winner: captions[0].totalScore >= captions[1].totalScore ? 'A' : 'B',
-      captions,
-      analysis: 'Análisis basado en métricas de engagement, claridad del hook, fuerza del CTA y optimización por plataforma.',
-    })
+    setLoadingManual(true)
+    setError('')
+    setTestResult(null)
     setVoted(null)
+
+    try {
+      const res = await fetch('/api/ab-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'analyze', captionA: manualA, captionB: manualB, platform }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error')
+
+      const scoresA = data.captionA?.scores ?? {}
+      const scoresB = data.captionB?.scores ?? {}
+
+      const captions: Caption[] = [
+        { id: 'A', text: manualA, tone: 'custom', scores: scoresA, totalScore: avg(scoresA), votes: 0 },
+        { id: 'B', text: manualB, tone: 'custom', scores: scoresB, totalScore: avg(scoresB), votes: 0 },
+      ]
+      setTestResult({
+        winner: data.winner ?? (captions[0].totalScore >= captions[1].totalScore ? 'A' : 'B'),
+        captions,
+        analysis: data.analysis ?? '',
+      })
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoadingManual(false)
+    }
   }
 
   function vote(captionId: string) {
@@ -236,8 +230,8 @@ Formato:
               <textarea value={manualB} onChange={e => setManualB(e.target.value)} placeholder="Pega aquí tu segunda versión..." rows={5} className="w-full px-3 py-2 bg-[#0d0d1a] border border-[#1a1a2e] rounded-lg text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500/50 resize-none" />
             </div>
           </div>
-          <button onClick={analyzeManual} disabled={!manualA.trim() || !manualB.trim()} className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-            <BarChart2 size={14} /> Analizar y comparar
+          <button onClick={analyzeManual} disabled={loadingManual || !manualA.trim() || !manualB.trim()} className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            {loadingManual ? <><RefreshCw size={14} className="animate-spin" /> Analizando...</> : <><BarChart2 size={14} /> Analizar y comparar</>}
           </button>
         </div>
       )}
@@ -288,8 +282,8 @@ Formato:
                   </div>
                 </div>
 
-                <div className="bg-[#0d0d1a] rounded-lg p-3 text-xs text-gray-300 leading-relaxed max-h-32 overflow-y-auto">
-                  {mode === 'manual' ? caption.text : `[Caption generado con tono ${CAPTION_TONES.find(t => t.id === caption.tone)?.label}]`}
+                <div className="bg-[#0d0d1a] rounded-lg p-3 text-xs text-gray-300 leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap">
+                  {caption.text}
                 </div>
 
                 <div className="space-y-1.5">
@@ -299,7 +293,7 @@ Formato:
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">
-                  <CopyButton text={mode === 'manual' ? caption.text : `Caption ${caption.id}`} />
+                  <CopyButton text={caption.text} />
                   <div className="flex items-center gap-1 ml-auto">
                     <button onClick={() => vote(caption.id)} className={cn('flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors', voted === caption.id ? 'bg-emerald-500/20 text-emerald-400' : 'text-gray-500 hover:text-emerald-400')}>
                       <ThumbsUp size={11} /> {voted === caption.id ? 'Votado' : 'Votar'}
@@ -311,12 +305,12 @@ Formato:
           </div>
 
           {/* Analysis */}
-          {mode === 'generate' && (
+          {testResult.analysis && (
             <div className="bg-gradient-to-br from-violet-900/20 to-purple-900/10 border border-violet-500/20 rounded-xl p-4">
               <h4 className="font-semibold text-violet-300 text-sm mb-3 flex items-center gap-2">
-                <Zap size={13} /> Análisis IA completo
+                <Zap size={13} /> Análisis IA
               </h4>
-              <div className="whitespace-pre-wrap text-sm text-gray-300 leading-relaxed max-h-64 overflow-y-auto">{testResult.analysis}</div>
+              <div className="whitespace-pre-wrap text-sm text-gray-300 leading-relaxed">{testResult.analysis}</div>
             </div>
           )}
         </div>
