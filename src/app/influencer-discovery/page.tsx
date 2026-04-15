@@ -1,11 +1,12 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import InfluencerDiscoveryClient from './InfluencerDiscoveryClient'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/session'
 
 export default async function InfluencerDiscoveryPage() {
   let plan = 'free'
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const user = await getSessionUser()
     if (user) plan = user.plan ?? 'free'
   } catch {}
 

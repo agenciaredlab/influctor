@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import PricingClient from './PricingClient'
+import { getSessionUser } from '@/lib/session'
 
 export default async function PricingPage() {
   let currentPlan = 'free'

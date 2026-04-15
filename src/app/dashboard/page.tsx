@@ -2,18 +2,9 @@ import { prisma } from '@/lib/prisma'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import DashboardClient from './DashboardClient'
 import { subDays, startOfMonth, startOfDay } from 'date-fns'
+import { getSessionUser } from '@/lib/session'
 
-const DEMO_USER_EMAIL = 'demo@influctor.app'
-
-async function getDashboardData() {
-  let user = await prisma.user.findUnique({ where: { email: DEMO_USER_EMAIL } })
-  if (!user) {
-    user = await prisma.user.create({
-      data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' },
-    })
-  }
-
-  const userId = user.id
+async function getDashboardData(userId: string) {
   const now = new Date()
   const monthStart = startOfMonth(now)
   const lastMonthStart = startOfMonth(subDays(monthStart, 1))
@@ -148,7 +139,10 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const data = await getDashboardData()
+  const user = await getSessionUser()
+  const data = await getDashboardData(user.id)
+  // Merge full user row into data
+  ;(data as any).user = user
 
   return (
     <DashboardLayout

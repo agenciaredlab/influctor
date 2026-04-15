@@ -2,12 +2,12 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import MonetizationClient from './MonetizationClient'
 import { prisma } from '@/lib/prisma'
 import { startOfMonth, subMonths } from 'date-fns'
+import { getSessionUser } from '@/lib/session'
 
-const DEMO_USER_EMAIL = 'demo@influctor.app'
 
 async function getData() {
-  let user = await prisma.user.findUnique({ where: { email: DEMO_USER_EMAIL } })
-  if (!user) {
+  const user = await getSessionUser()
+    if (!user) {
     user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
   }
 

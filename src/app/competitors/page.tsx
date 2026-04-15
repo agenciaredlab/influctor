@@ -1,11 +1,12 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import CompetitorsClient from './CompetitorsClient'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/session'
 
 export default async function CompetitorsPage() {
   let competitors: any[] = []
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const user = await getSessionUser()
     if (user) {
       competitors = await prisma.competitor.findMany({
         where: { userId: user.id },

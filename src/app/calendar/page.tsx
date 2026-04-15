@@ -1,12 +1,12 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import CalendarClient from './CalendarClient'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/session'
 
-const DEMO_USER_EMAIL = 'demo@influctor.app'
 
 async function getPosts() {
-  let user = await prisma.user.findUnique({ where: { email: DEMO_USER_EMAIL } })
-  if (!user) user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
+  const user = await getSessionUser()
+    if (!user) user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
 
   const count = await prisma.contentPost.count({ where: { userId: user.id } })
   if (count === 0) {

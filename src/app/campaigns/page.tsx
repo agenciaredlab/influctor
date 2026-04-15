@@ -1,12 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import CampaignsClient from './CampaignsClient'
+import { getSessionUser } from '@/lib/session'
 
-const DEMO_USER_EMAIL = 'demo@influctor.app'
 
 async function getCampaigns() {
-  let user = await prisma.user.findUnique({ where: { email: DEMO_USER_EMAIL } })
-  if (!user) {
+  const user = await getSessionUser()
+    if (!user) {
     user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
   }
   const campaigns = await prisma.campaign.findMany({

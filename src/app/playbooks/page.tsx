@@ -1,12 +1,12 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import PlaybooksClient from './PlaybooksClient'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/session'
 
-const DEMO_USER_EMAIL = 'demo@influctor.app'
 
 async function getData() {
-  let user = await prisma.user.findUnique({ where: { email: DEMO_USER_EMAIL } })
-  if (!user) user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
+  const user = await getSessionUser()
+    if (!user) user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
 
   const [metrics, progress] = await Promise.all([
     prisma.socialMetric.findMany({

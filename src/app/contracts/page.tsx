@@ -1,11 +1,12 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ContractsClient from './ContractsClient'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/session'
 
 export default async function ContractsPage() {
   let plan = 'free'
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const user = await getSessionUser()
     if (user) plan = user.plan ?? 'free'
   } catch {}
 

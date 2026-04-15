@@ -2,6 +2,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Settings, User, Key, Shield, Link2 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import InstagramConnect from '@/components/social/InstagramConnect'
+import { getSessionUser } from '@/lib/session'
 
 export default function SettingsPage() {
   return (

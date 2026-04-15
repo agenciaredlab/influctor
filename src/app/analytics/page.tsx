@@ -3,12 +3,12 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import AnalyticsClient from './AnalyticsClient'
 import InstagramStatsBar from '@/components/social/InstagramStatsBar'
 import { subDays } from 'date-fns'
+import { getSessionUser } from '@/lib/session'
 
-const DEMO_USER_EMAIL = 'demo@influctor.app'
 
 async function getAnalyticsData() {
-  let user = await prisma.user.findUnique({ where: { email: DEMO_USER_EMAIL } })
-  if (!user) {
+  const user = await getSessionUser()
+    if (!user) {
     user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
   }
 

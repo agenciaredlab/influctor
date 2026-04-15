@@ -1,6 +1,7 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ReportsClient from './ReportsClient'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/session'
 
 export default async function ReportsPage() {
   let plan = 'free'
@@ -13,7 +14,7 @@ export default async function ReportsPage() {
   }
 
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const user = await getSessionUser()
     if (user) {
       plan = user.plan ?? 'free'
 

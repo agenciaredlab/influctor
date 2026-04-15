@@ -1,6 +1,7 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import MarketplaceClient from './MarketplaceClient'
 import { prisma } from '@/lib/prisma'
+import { getSessionUser } from '@/lib/session'
 
 export default async function MarketplacePage() {
   let listings: any[] = []
@@ -9,7 +10,7 @@ export default async function MarketplacePage() {
   let stats = { open: 0, brands: 0, totalBudget: 0 }
 
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const user = await getSessionUser()
     if (user) plan = user.plan ?? 'free'
 
     const [rawListings, apps, aggregate] = await Promise.all([
