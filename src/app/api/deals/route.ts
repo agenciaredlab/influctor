@@ -1,26 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('userId')
-  if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
-  const deals = await prisma.brandDeal.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } })
+  const sessionUser = await getApiSession()
+  if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const deals = await prisma.brandDeal.findMany({
+    where: { userId: sessionUser.id },
+    orderBy: { createdAt: 'desc' },
+  })
   return NextResponse.json(deals)
 }
 
 export async function POST(req: NextRequest) {
+  const sessionUser = await getApiSession()
+  if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
   const data = await req.json()
-  const { userId, brand, contact, email, phone, platform, type, stage, value,
+  const { brand, contact, email, phone, platform, type, stage, value,
     commissionPct, dueDate, description, deliverables, notes, tags, niche } = data
 
-  if (!userId || !brand) return NextResponse.json({ error: 'userId and brand required' }, { status: 400 })
-
-  const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (!brand) return NextResponse.json({ error: 'brand required' }, { status: 400 })
 
   const deal = await prisma.brandDeal.create({
     data: {
-      userId: user.id, brand, contact: contact || null, email: email || null,
+      userId: sessionUser.id, brand, contact: contact || null, email: email || null,
       phone: phone || null, platform, type, stage: stage || 'outreach',
       value: parseFloat(value || 0), commissionPct: commissionPct ? parseFloat(commissionPct) : null,
       dueDate: dueDate ? new Date(dueDate) : null, description: description || null,

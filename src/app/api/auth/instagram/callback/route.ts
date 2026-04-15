@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -96,6 +97,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const sessionUser = await getApiSession()
+    if (!sessionUser) {
+      return NextResponse.redirect(`${redirectBase}?instagram_error=not_authenticated`)
+    }
+
     // 1. Exchange auth code for short-lived token
     const { access_token: shortToken } = await exchangeCodeForToken(code)
 
@@ -117,13 +123,12 @@ export async function GET(req: NextRequest) {
 
     // 4. Find Instagram Business Account from pages
     let igUserId: string | null = null
-    let igPageToken: string = longToken
+    const igPageToken: string = longToken
 
     for (const page of pages) {
       const igId = await getInstagramAccountFromPage(page.id, page.access_token)
       if (igId) {
         igUserId = igId
-        igPageToken = longToken // use user token, works for insights
         break
       }
     }
@@ -139,17 +144,11 @@ export async function GET(req: NextRequest) {
     // 5. Get Instagram profile data
     const profile = await getInstagramProfile(igUserId, longToken)
 
-    // 6. Get demo user (replace with real auth when you add login)
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-    if (!user) {
-      return NextResponse.redirect(`${redirectBase}?instagram_error=user_not_found`)
-    }
-
-    // 7. Upsert SocialAccount
+    // 6. Upsert SocialAccount
     await prisma.socialAccount.upsert({
       where: {
         userId_platform_platformUserId: {
-          userId: user.id,
+          userId: sessionUser.id,
           platform: 'instagram',
           platformUserId: igUserId,
         },
@@ -171,7 +170,7 @@ export async function GET(req: NextRequest) {
         scopes: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list',
       },
       create: {
-        userId: user.id,
+        userId: sessionUser.id,
         platform: 'instagram',
         platformUserId: igUserId,
         accessToken: longToken,

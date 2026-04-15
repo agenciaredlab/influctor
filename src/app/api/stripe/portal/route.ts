@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-03-25.dahlia',
@@ -17,7 +18,10 @@ export async function POST(_req: NextRequest) {
       )
     }
 
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user?.stripeCustomerId) {
       return NextResponse.json(
         { error: 'No tienes una suscripción activa' },

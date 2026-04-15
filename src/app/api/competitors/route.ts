@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-    if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     const body = await req.json()
     const competitor = await prisma.competitor.create({
       data: {
-        userId:       user.id,
+        userId:       sessionUser.id,
         name:         body.handle.replace('@', ''),
         handle:       body.handle.startsWith('@') ? body.handle : `@${body.handle}`,
         platform:     body.platform,

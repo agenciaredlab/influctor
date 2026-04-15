@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 // POST /api/marketplace/listings/[id]/apply
 export async function POST(
@@ -7,7 +8,10 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
     if (user.plan === 'free') {

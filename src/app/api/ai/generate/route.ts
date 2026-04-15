@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
+import { getApiSession } from '@/lib/session'
 
 const SYSTEM_PROMPT = `Eres un experto en marketing digital, redes sociales y creación de contenido.
 Tienes más de 10 años de experiencia ayudando a creadores de contenido a crecer en Instagram, TikTok, YouTube, LinkedIn y Twitter.
@@ -120,7 +121,10 @@ Sé directo, práctico y específico para la plataforma ${platform || 'indicada'
 
 export async function POST(req: NextRequest) {
   try {
-    const { type, fields, userId } = await req.json()
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const { type, fields } = await req.json()
 
     if (!fields?.topic?.trim()) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
@@ -134,7 +138,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check plan limits
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (user) {
       const plan = getPlan(user.plan)
       const limit = plan.limits.aiGenerationsPerMonth
@@ -161,16 +165,15 @@ export async function POST(req: NextRequest) {
 
     // Save to AI usage history and increment monthly counter
     try {
-      const dbUser = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-      if (dbUser) {
+      if (user) {
         const now = new Date()
-        const resetAt = dbUser.aiUsageResetAt
+        const resetAt = user.aiUsageResetAt
         const needsReset = !resetAt || resetAt.getMonth() !== now.getMonth() || resetAt.getFullYear() !== now.getFullYear()
 
         await prisma.$transaction([
           prisma.aiUsage.create({
             data: {
-              userId: dbUser.id,
+              userId: user.id,
               type,
               prompt: fields.topic,
               result,
@@ -178,7 +181,7 @@ export async function POST(req: NextRequest) {
             },
           }),
           prisma.user.update({
-            where: { id: dbUser.id },
+            where: { id: user.id },
             data: {
               aiUsageThisMonth: needsReset ? 1 : { increment: 1 },
               aiUsageResetAt: needsReset ? now : undefined,

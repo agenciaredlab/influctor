@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendWeeklyReport, type WeeklyReportData } from '@/lib/email'
 import { getPlan } from '@/lib/plans'
+import { getApiSession } from '@/lib/session'
 
 // Builds a WeeklyReportData object from DB records for a given user
 export async function buildReportData(userId: string): Promise<WeeklyReportData> {
@@ -101,7 +102,10 @@ export async function POST(_req: NextRequest) {
   }
 
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
     // Only Creator+ can receive reports

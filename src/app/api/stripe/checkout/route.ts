@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import { PLANS } from '@/lib/plans'
+import { getApiSession } from '@/lib/session'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-03-25.dahlia',
@@ -11,6 +12,9 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
 export async function POST(req: NextRequest) {
   try {
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
     const { planId } = await req.json()
 
     if (!planId || planId === 'free') {
@@ -32,8 +36,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get or create the demo user
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
+    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
     // Get or create Stripe customer

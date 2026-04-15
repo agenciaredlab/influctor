@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 export async function POST() {
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     await prisma.socialAccount.updateMany({
-      where: { userId: user.id, platform: 'instagram' },
+      where: { userId: sessionUser.id, platform: 'instagram' },
       data: { isActive: false },
     })
 

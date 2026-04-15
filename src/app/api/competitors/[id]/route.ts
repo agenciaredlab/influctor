@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-    if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     await prisma.competitor.deleteMany({
-      where: { id: params.id, userId: user.id },
+      where: { id: params.id, userId: sessionUser.id },
     })
     return NextResponse.json({ ok: true })
   } catch (err: any) {

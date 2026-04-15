@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 
@@ -91,11 +92,11 @@ async function refreshProfileData(igUserId: string, token: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     const account = await prisma.socialAccount.findFirst({
-      where: { userId: user.id, platform: 'instagram', isActive: true },
+      where: { userId: sessionUser.id, platform: 'instagram', isActive: true },
     })
 
     if (!account) {
@@ -167,7 +168,7 @@ export async function POST(req: NextRequest) {
       },
       create: {
         socialAccountId: account.id,
-        userId: user.id,
+        userId: sessionUser.id,
         platform: 'instagram',
         date: today,
         followers,
@@ -209,7 +210,7 @@ export async function POST(req: NextRequest) {
         create: {
           igMediaId: post.id,
           socialAccountId: account.id,
-          userId: user.id,
+          userId: sessionUser.id,
           mediaType: post.media_type,
           caption: post.caption?.slice(0, 2000) || null,
           mediaUrl: post.media_url || null,
@@ -248,11 +249,11 @@ export async function POST(req: NextRequest) {
 // GET: return current connected account status + recent snapshots
 export async function GET(_req: NextRequest) {
   try {
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-    if (!user) return NextResponse.json({ connected: false })
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ connected: false })
 
     const account = await prisma.socialAccount.findFirst({
-      where: { userId: user.id, platform: 'instagram', isActive: true },
+      where: { userId: sessionUser.id, platform: 'instagram', isActive: true },
       include: {
         snapshots: {
           orderBy: { date: 'desc' },
@@ -264,7 +265,7 @@ export async function GET(_req: NextRequest) {
     if (!account) return NextResponse.json({ connected: false })
 
     const recentMedia = await prisma.instagramMedia.findMany({
-      where: { userId: user.id },
+      where: { userId: sessionUser.id },
       orderBy: { timestamp: 'desc' },
       take: 12,
     })

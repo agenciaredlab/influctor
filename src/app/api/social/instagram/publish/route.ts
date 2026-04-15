@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 
@@ -106,6 +107,9 @@ function detectMediaType(
 
 export async function POST(req: NextRequest) {
   try {
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
     const { postId } = await req.json()
 
     if (!postId) {
@@ -128,11 +132,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Get Instagram account
-    const user = await prisma.user.findFirst({ where: { email: 'demo@influctor.app' } })
-    if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
-
     const igAccount = await prisma.socialAccount.findFirst({
-      where: { userId: user.id, platform: 'instagram', isActive: true },
+      where: { userId: sessionUser.id, platform: 'instagram', isActive: true },
     })
 
     if (!igAccount) {
