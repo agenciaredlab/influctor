@@ -288,7 +288,10 @@ Dame un análisis breve y accionable con:
                 : <><Mail size={12} /> Enviar por email</>}
             </button>
           )}
-          <button className="flex items-center gap-2 px-3 py-2 bg-[#13131f] border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-xs rounded-lg transition-colors">
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-3 py-2 bg-[#13131f] border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-xs rounded-lg transition-colors print:hidden"
+          >
             <Download size={12} /> Exportar PDF
           </button>
         </div>

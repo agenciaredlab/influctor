@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, Users, Zap, DollarSign, Filter, MapPin, ExternalLink, BarChart2, CheckCircle, X, Plus, Loader2 } from 'lucide-react'
+import { Search, Users, Zap, DollarSign, Filter, MapPin, ExternalLink, BarChart2, CheckCircle, X, Plus, Loader2, Mail } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UpgradeGate from '@/components/ui/UpgradeGate'
 
@@ -21,6 +21,7 @@ interface InfluencerProfile {
   verified: boolean
   recentGrowth: string | null
   profileUrl: string | null
+  contactEmail: string | null
 }
 
 const TIERS = ['Todos', 'Nano (<10K)', 'Micro (10–100K)', 'Macro (100K–1M)', 'Mega (>1M)']
@@ -205,6 +206,7 @@ export default function InfluencerDiscoveryClient({
   const [compared, setCompared] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showCompare, setShowCompare] = useState(false)
 
   const isPro = plan === 'pro'
 
@@ -305,6 +307,14 @@ export default function InfluencerDiscoveryClient({
               <button onClick={() => toggleCompare(inf.id)} className="text-violet-400 hover:text-white"><X size={10} /></button>
             </div>
           ))}
+          {compared.length >= 2 && (
+            <button
+              onClick={() => setShowCompare(true)}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1 bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium rounded-full transition-colors"
+            >
+              <BarChart2 size={11} /> Ver comparativa
+            </button>
+          )}
         </div>
       )}
 
@@ -468,6 +478,17 @@ export default function InfluencerDiscoveryClient({
                     <ExternalLink size={13} /> Sin enlace
                   </button>
                 )}
+                {selected.contactEmail ? (
+                  <a href={`mailto:${selected.contactEmail}`}
+                    className="w-full py-2 rounded-lg border border-[#1a1a2e] text-gray-300 hover:text-white hover:border-violet-500/30 text-sm transition-colors flex items-center justify-center gap-2">
+                    <Mail size={13} /> Contactar
+                  </a>
+                ) : selected.profileUrl ? (
+                  <a href={selected.profileUrl} target="_blank" rel="noopener noreferrer"
+                    className="w-full py-2 rounded-lg border border-[#1a1a2e] text-gray-300 hover:text-white hover:border-violet-500/30 text-sm transition-colors flex items-center justify-center gap-2">
+                    <Mail size={13} /> Contactar
+                  </a>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -484,6 +505,79 @@ export default function InfluencerDiscoveryClient({
           onClose={() => setShowAddModal(false)}
           onAdded={profile => setProfiles(prev => [profile, ...prev])}
         />
+      )}
+
+      {/* Comparison modal */}
+      {showCompare && compareList.length >= 2 && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#13131f] border border-[#1a1a2e] rounded-2xl p-6 w-full max-w-4xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                <BarChart2 size={16} className="text-violet-400" /> Comparativa de influencers
+              </h3>
+              <button onClick={() => setShowCompare(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+            </div>
+
+            {/* Column headers */}
+            <div className={`grid gap-4`} style={{ gridTemplateColumns: `180px repeat(${compareList.length}, 1fr)` }}>
+              <div /> {/* row label column */}
+              {compareList.map(inf => (
+                <div key={inf.id} className="text-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-white font-bold text-lg mx-auto mb-2">
+                    {inf.name[0]}
+                  </div>
+                  <p className="text-sm font-semibold text-white truncate">{inf.name}</p>
+                  <p className="text-xs text-gray-500">{inf.handle}</p>
+                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium mt-1 inline-block', TIER_COLORS[getTier(inf.followers)])}>
+                    {getTier(inf.followers)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 space-y-1">
+              {[
+                { label: 'Plataforma',     getValue: (i: InfluencerProfile) => `${PLATFORM_ICONS[i.platform] ?? ''} ${i.platform}` },
+                { label: 'Seguidores',     getValue: (i: InfluencerProfile) => formatK(i.followers), highlight: true },
+                { label: 'Engagement',     getValue: (i: InfluencerProfile) => `${i.engagement}%`, highlight: true },
+                { label: 'Avg views',      getValue: (i: InfluencerProfile) => i.avgViews > 0 ? formatK(i.avgViews) : '—' },
+                { label: 'Tarifa est.',    getValue: (i: InfluencerProfile) => i.estimatedRate > 0 ? `$${i.estimatedRate}/post` : '—' },
+                { label: 'Nicho',          getValue: (i: InfluencerProfile) => i.niche ?? '—' },
+                { label: 'Ubicación',      getValue: (i: InfluencerProfile) => i.location ?? '—' },
+                { label: 'Crecimiento',    getValue: (i: InfluencerProfile) => i.recentGrowth ?? '—' },
+              ].map(row => (
+                <div key={row.label} className={`grid gap-4 py-2.5 px-2 rounded-lg ${row.highlight ? 'bg-[#0d0d1a]' : ''}`}
+                  style={{ gridTemplateColumns: `180px repeat(${compareList.length}, 1fr)` }}>
+                  <span className="text-xs text-gray-500 self-center">{row.label}</span>
+                  {compareList.map(inf => (
+                    <span key={inf.id} className="text-xs text-gray-200 text-center self-center font-medium">{row.getValue(inf)}</span>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Action row */}
+            <div className={`grid gap-4 mt-4 pt-4 border-t border-[#1a1a2e]`} style={{ gridTemplateColumns: `180px repeat(${compareList.length}, 1fr)` }}>
+              <span className="text-xs text-gray-500 self-center">Acciones</span>
+              {compareList.map(inf => (
+                <div key={inf.id} className="flex flex-col gap-1.5">
+                  {inf.profileUrl ? (
+                    <a href={inf.profileUrl} target="_blank" rel="noopener noreferrer"
+                      className="py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors flex items-center justify-center gap-1">
+                      <ExternalLink size={11} /> Ver perfil
+                    </a>
+                  ) : null}
+                  {inf.contactEmail ? (
+                    <a href={`mailto:${inf.contactEmail}`}
+                      className="py-1.5 rounded-lg border border-[#1a1a2e] text-gray-300 hover:text-white text-xs transition-colors flex items-center justify-center gap-1">
+                      <Mail size={11} /> Contactar
+                    </a>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
