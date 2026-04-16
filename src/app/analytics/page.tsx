@@ -14,8 +14,9 @@ async function getAnalyticsData() {
 
   const [incomes, metrics, igAccount] = await Promise.all([
     prisma.income.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, date: { gte: subDays(new Date(), 365) } },
       orderBy: { date: 'desc' },
+      take: 500,
     }),
     prisma.socialMetric.findMany({
       where: { userId: user.id, date: { gte: subDays(new Date(), 180) } },

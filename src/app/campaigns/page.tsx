@@ -12,6 +12,7 @@ async function getCampaigns() {
   const campaigns = await prisma.campaign.findMany({
     where: { userId: user.id },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    take: 100,
   })
   return { user, campaigns }
 }

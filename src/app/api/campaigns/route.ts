@@ -5,11 +5,21 @@ export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get('userId')
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
-  const campaigns = await prisma.campaign.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-  })
-  return NextResponse.json(campaigns)
+  const page  = Math.max(1, parseInt(req.nextUrl.searchParams.get('page')  ?? '1'))
+  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get('limit') ?? '20')))
+  const skip  = (page - 1) * limit
+
+  const [data, total] = await prisma.$transaction([
+    prisma.campaign.findMany({
+      where: { userId },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      take: limit,
+      skip,
+    }),
+    prisma.campaign.count({ where: { userId } }),
+  ])
+
+  return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
 }
 
 export async function POST(req: NextRequest) {

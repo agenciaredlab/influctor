@@ -14,6 +14,7 @@ async function getGoals() {
   const goals = await prisma.goal.findMany({
     where: { userId: user.id },
     orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
+    take: 100,
   })
   return { user, goals }
 }

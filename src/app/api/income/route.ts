@@ -6,11 +6,21 @@ export async function GET(req: NextRequest) {
   const sessionUser = await getApiSession()
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  const incomes = await prisma.income.findMany({
-    where: { userId: sessionUser.id },
-    orderBy: { date: 'desc' },
-  })
-  return NextResponse.json(incomes)
+  const page  = Math.max(1, parseInt(req.nextUrl.searchParams.get('page')  ?? '1'))
+  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get('limit') ?? '20')))
+  const skip  = (page - 1) * limit
+
+  const [data, total] = await prisma.$transaction([
+    prisma.income.findMany({
+      where: { userId: sessionUser.id },
+      orderBy: { date: 'desc' },
+      take: limit,
+      skip,
+    }),
+    prisma.income.count({ where: { userId: sessionUser.id } }),
+  ])
+
+  return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
 }
 
 export async function POST(req: NextRequest) {
