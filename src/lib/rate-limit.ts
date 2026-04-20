@@ -1,27 +1,25 @@
 /**
  * Rate limiting with automatic backend selection:
  *
- *  - Production (UPSTASH_REDIS_REST_URL set) → Upstash Redis sliding window.
- *    Works across all instances/regions (Vercel, Railway, etc.).
+ *  - REDIS_URL set → ioredis sliding window (shared across all instances)
+ *  - No Redis       → in-memory sliding window (dev / single-instance only)
  *
- *  - Development / no Redis → in-memory sliding window.
- *    Single-instance only; resets on server restart.
+ * Usage:
+ *   const { ok, retryAfter } = await rateLimit(rateLimitKey(req, userId), { limit: 20, window: 60 })
+ *   if (!ok) return NextResponse.json({ error: '...' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
  *
- * Setup (Upstash):
- *   1. https://console.upstash.com → New Database (free tier)
- *   2. Copy REST URL and token to .env.local:
- *      UPSTASH_REDIS_REST_URL="https://..."
- *      UPSTASH_REDIS_REST_TOKEN="..."
+ * .env.local:
+ *   REDIS_URL="redis://localhost:6379"
+ *   REDIS_URL="redis://:password@host:6379"
+ *   REDIS_URL="rediss://host:6380"   ← TLS
  */
 
 import { NextRequest } from 'next/server'
 
-// ─── Result type ──────────────────────────────────────────────────────────────
-
 export interface RateLimitResult {
   ok:         boolean
   remaining:  number
-  retryAfter: number  // seconds to wait if ok=false
+  retryAfter: number  // seconds; 0 when ok=true
 }
 
 // ─── In-memory fallback ───────────────────────────────────────────────────────
@@ -52,44 +50,61 @@ function memLimit(id: string, limit: number, windowSec: number): RateLimitResult
   return { ok: true, remaining: limit - cur.count, retryAfter: 0 }
 }
 
-// ─── Upstash Redis limiter ────────────────────────────────────────────────────
+// ─── Redis sliding window (sorted set) ───────────────────────────────────────
 
-// Lazily initialised so the import doesn't fail when Upstash isn't configured.
-let upstashLimiter: ((id: string, limit: number, windowSec: number) => Promise<RateLimitResult>) | null = null
+let redisClient: any = null
 
-function getUpstashLimiter() {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    return null
-  }
-  if (upstashLimiter) return upstashLimiter
+function getRedis() {
+  if (!process.env.REDIS_URL) return null
+  if (redisClient) return redisClient
 
-  // Dynamic import to avoid errors when package isn't configured
-  const { Redis }     = require('@upstash/redis')
-  const { Ratelimit } = require('@upstash/ratelimit')
-
-  const redis = new Redis({
-    url:   process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  const { default: Redis } = require('ioredis')
+  redisClient = new Redis(process.env.REDIS_URL, {
+    maxRetriesPerRequest: 1,
+    enableReadyCheck: false,
+    lazyConnect: true,
   })
+  redisClient.on('error', (err: Error) => {
+    // Don't crash the app if Redis is down — fall back silently
+    console.error('[rate-limit] Redis error:', err.message)
+    redisClient = null
+  })
+  return redisClient
+}
 
-  const cache = new Map<string, Ratelimit>()
+async function redisLimit(id: string, limit: number, windowSec: number): Promise<RateLimitResult> {
+  const redis = getRedis()
+  if (!redis) return memLimit(id, limit, windowSec)
 
-  upstashLimiter = async (id: string, limit: number, windowSec: number) => {
-    const key = `${limit}:${windowSec}`
-    if (!cache.has(key)) {
-      cache.set(key, new Ratelimit({
-        redis,
-        limiter:   Ratelimit.slidingWindow(limit, `${windowSec} s`),
-        prefix:    'influctor:rl',
-        ephemeralCache: new Map(),
-      }))
+  const key    = `rl:${id}`
+  const now    = Date.now()
+  const cutoff = now - windowSec * 1000
+
+  try {
+    // Sliding window via sorted set
+    const pipeline = redis.pipeline()
+    pipeline.zremrangebyscore(key, '-inf', cutoff)          // remove expired entries
+    pipeline.zadd(key, now, `${now}-${Math.random()}`)      // add current request
+    pipeline.zcard(key)                                      // count in window
+    pipeline.pexpire(key, windowSec * 1000)                  // auto-expire the key
+
+    const results  = await pipeline.exec() as [Error | null, any][]
+    const count    = results[2][1] as number
+    const remaining = Math.max(0, limit - count)
+
+    if (count > limit) {
+      // Get the oldest entry to calculate retry window
+      const oldest = await redis.zrange(key, 0, 0, 'WITHSCORES') as string[]
+      const oldestTs  = oldest.length >= 2 ? parseInt(oldest[1]) : now
+      const retryAfter = Math.ceil((oldestTs + windowSec * 1000 - now) / 1000)
+      return { ok: false, remaining: 0, retryAfter: Math.max(1, retryAfter) }
     }
-    const { success, remaining, reset } = await cache.get(key)!.limit(id)
-    const retryAfter = success ? 0 : Math.ceil((reset - Date.now()) / 1000)
-    return { ok: success, remaining, retryAfter }
-  }
 
-  return upstashLimiter
+    return { ok: true, remaining, retryAfter: 0 }
+  } catch (err) {
+    console.error('[rate-limit] Redis pipeline error:', err)
+    return memLimit(id, limit, windowSec)
+  }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -98,12 +113,10 @@ export async function rateLimit(
   identifier: string,
   options: { limit: number; window: number },
 ): Promise<RateLimitResult> {
-  const upstash = getUpstashLimiter()
-  if (upstash) return upstash(identifier, options.limit, options.window)
+  if (process.env.REDIS_URL) return redisLimit(identifier, options.limit, options.window)
   return memLimit(identifier, options.limit, options.window)
 }
 
-/** Builds a per-user+IP key from the request. */
 export function rateLimitKey(req: NextRequest, userId?: string): string {
   const forwarded = req.headers.get('x-forwarded-for') ?? ''
   const ip = forwarded ? forwarded.split(',')[0].trim() : 'unknown'
