@@ -61,10 +61,20 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     // Add user id and plan to the JWT token
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session: updSession }) {
       if (user) {
-        token.id   = user.id
-        token.plan = (user as any).plan ?? 'free'
+        // Sign-in: always fetch plan from DB so Google OAuth users get the right plan
+        // (the adapter user object doesn't guarantee custom fields)
+        token.id = user.id
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { plan: true },
+        })
+        token.plan = dbUser?.plan ?? 'free'
+      }
+      // Allow client to call useSession().update({ plan }) after Stripe upgrade
+      if (trigger === 'update' && updSession?.plan) {
+        token.plan = updSession.plan
       }
       return token
     },

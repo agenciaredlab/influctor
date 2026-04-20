@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { CheckCircle, X, Zap, Star, Crown, ArrowRight, RefreshCw, ExternalLink, AlertCircle, Shield } from 'lucide-react'
 import { PLANS } from '@/lib/plans'
 import { cn } from '@/lib/utils'
@@ -25,11 +26,14 @@ export default function PricingClient({ currentPlan, planStatus, subscription, a
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const searchParams = useSearchParams()
+  const { update: updateSession } = useSession()
 
   useEffect(() => {
     if (searchParams.get('success') === '1') {
       const plan = searchParams.get('plan')
       setSuccessMsg(`¡Bienvenido al plan ${plan?.charAt(0).toUpperCase()}${plan?.slice(1)}! Tu suscripción está activa.`)
+      // Refresh JWT so Sidebar shows the new plan immediately without re-login
+      if (plan) updateSession({ plan })
     }
     if (searchParams.get('canceled') === '1') {
       setError('El proceso de pago fue cancelado.')
