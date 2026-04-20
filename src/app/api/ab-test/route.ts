@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
+import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 const SCORE_LABELS = ['Claridad', 'Hook', 'CTA', 'Engagement', 'Longitud']
 
@@ -21,6 +22,14 @@ function buildScoreDimensions() {
 export async function POST(req: NextRequest) {
   const sessionUser = await getApiSession()
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  const { ok, retryAfter } = rateLimit(rateLimitKey(req, sessionUser.id), { limit: 10, window: 60 })
+  if (!ok) {
+    return NextResponse.json(
+      { error: `Demasiadas solicitudes. Intenta de nuevo en ${retryAfter} segundos.` },
+      { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+    )
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })

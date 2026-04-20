@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiSession } from '@/lib/session'
 import Anthropic from '@anthropic-ai/sdk'
+import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 
@@ -32,6 +33,15 @@ async function fetchFacebookPage(pageSlug: string): Promise<{ fans: number | nul
 export async function POST(req: NextRequest) {
   const sessionUser = await getApiSession()
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+  // 5 research requests per minute per user+IP (each call hits Anthropic + Facebook)
+  const { ok, retryAfter } = rateLimit(rateLimitKey(req, sessionUser.id), { limit: 5, window: 60 })
+  if (!ok) {
+    return NextResponse.json(
+      { error: `Demasiadas solicitudes. Intenta de nuevo en ${retryAfter} segundos.` },
+      { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+    )
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })

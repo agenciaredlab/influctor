@@ -415,7 +415,7 @@ export default function InfluencerDiscoveryClient({
               plan={plan}
               requiredPlan="pro"
               feature="Influencer Discovery Completo"
-              description={`Accede a la base de datos completa de ${profiles.length}+ influencers con filtros avanzados, comparativas y datos de contacto.`}
+              description="Accede a la base de datos completa con filtros avanzados, comparativas y datos de contacto."
               variant="block"
             />
           )}

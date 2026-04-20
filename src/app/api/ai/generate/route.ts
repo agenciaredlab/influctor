@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
+import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 const SYSTEM_PROMPT = `Eres un experto en marketing digital, redes sociales y creación de contenido.
 Tienes más de 10 años de experiencia ayudando a creadores de contenido a crecer en Instagram, TikTok, YouTube, LinkedIn y Twitter.
@@ -123,6 +124,15 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    // 20 AI requests per minute per user+IP
+    const { ok, retryAfter } = rateLimit(rateLimitKey(req, sessionUser.id), { limit: 20, window: 60 })
+    if (!ok) {
+      return NextResponse.json(
+        { error: `Demasiadas solicitudes. Intenta de nuevo en ${retryAfter} segundos.` },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } }
+      )
+    }
 
     const { type, fields } = await req.json()
 
