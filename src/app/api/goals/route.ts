@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getApiSession } from '@/lib/session'
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('userId')
-  if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+  const sessionUser = await getApiSession()
+  if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const page  = Math.max(1, parseInt(req.nextUrl.searchParams.get('page')  ?? '1'))
   const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get('limit') ?? '20')))
@@ -11,40 +12,42 @@ export async function GET(req: NextRequest) {
 
   const [data, total] = await prisma.$transaction([
     prisma.goal.findMany({
-      where: { userId },
+      where: { userId: sessionUser.id },
       orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
       take: limit,
       skip,
     }),
-    prisma.goal.count({ where: { userId } }),
+    prisma.goal.count({ where: { userId: sessionUser.id } }),
   ])
 
   return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
 }
 
 export async function POST(req: NextRequest) {
-  const data = await req.json()
-  const { userId, title, description, category, platform, targetValue, currentValue, unit, deadline, priority, notes } = data
+  const sessionUser = await getApiSession()
+  if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  if (!userId || !title) return NextResponse.json({ error: 'userId and title required' }, { status: 400 })
+  const body = await req.json()
+  const { title, description, category, platform, targetValue, currentValue, unit, deadline, priority, notes } = body
 
-  // Calculate score based on progress
+  if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
+
   const progress = targetValue > 0 ? (currentValue / targetValue) * 100 : 0
 
   const goal = await prisma.goal.create({
     data: {
-      userId,
+      userId:       sessionUser.id,
       title,
-      description: description || null,
-      category: category || 'followers',
-      platform: platform || null,
-      targetValue: parseFloat(targetValue),
+      description:  description  || null,
+      category:     category     || 'followers',
+      platform:     platform     || null,
+      targetValue:  parseFloat(targetValue),
       currentValue: parseFloat(currentValue || 0),
-      unit: unit || '',
-      deadline: deadline ? new Date(deadline) : null,
-      priority: priority || 'medium',
-      notes: notes || null,
-      score: Math.min(100, progress),
+      unit:         unit         || '',
+      deadline:     deadline ? new Date(deadline) : null,
+      priority:     priority     || 'medium',
+      notes:        notes        || null,
+      score:        Math.min(100, progress),
     },
   })
 

@@ -6,9 +6,6 @@ import { getSessionUser } from '@/lib/session'
 
 async function getDeals() {
   const user = await getSessionUser()
-    if (!user) {
-    user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
-  }
 
   // Seed some demo deals if empty
   const count = await prisma.brandDeal.count({ where: { userId: user.id } })
@@ -29,6 +26,7 @@ async function getDeals() {
   const deals = await prisma.brandDeal.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: 'desc' },
+    take: 100,
   })
   return { user, deals }
 }

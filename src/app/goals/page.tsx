@@ -6,11 +6,6 @@ import { getSessionUser } from '@/lib/session'
 
 async function getGoals() {
   const user = await getSessionUser()
-    if (!user) {
-    user = await prisma.user.create({
-      data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' },
-    })
-  }
   const goals = await prisma.goal.findMany({
     where: { userId: user.id },
     orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],

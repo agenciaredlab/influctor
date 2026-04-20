@@ -6,7 +6,6 @@ import { getSessionUser } from '@/lib/session'
 
 async function getPosts() {
   const user = await getSessionUser()
-    if (!user) user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
 
   const count = await prisma.contentPost.count({ where: { userId: user.id } })
   if (count === 0) {
@@ -34,6 +33,7 @@ async function getPosts() {
     prisma.contentPost.findMany({
       where: { userId: user.id },
       orderBy: { scheduledAt: 'asc' },
+      take: 500,
     }),
     prisma.socialAccount.findFirst({
       where: { userId: user.id, platform: 'instagram', isActive: true },

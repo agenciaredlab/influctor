@@ -6,7 +6,6 @@ import { getSessionUser } from '@/lib/session'
 
 async function getData() {
   const user = await getSessionUser()
-    if (!user) user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
 
   const [metrics, progress] = await Promise.all([
     prisma.socialMetric.findMany({

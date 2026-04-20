@@ -8,9 +8,6 @@ import { getSessionUser } from '@/lib/session'
 
 async function getAnalyticsData() {
   const user = await getSessionUser()
-    if (!user) {
-    user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
-  }
 
   const [incomes, metrics, igAccount] = await Promise.all([
     prisma.income.findMany({

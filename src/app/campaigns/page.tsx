@@ -6,9 +6,6 @@ import { getSessionUser } from '@/lib/session'
 
 async function getCampaigns() {
   const user = await getSessionUser()
-    if (!user) {
-    user = await prisma.user.create({ data: { email: DEMO_USER_EMAIL, name: 'Alex Creator' } })
-  }
   const campaigns = await prisma.campaign.findMany({
     where: { userId: user.id },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
