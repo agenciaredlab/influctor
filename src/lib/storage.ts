@@ -5,12 +5,9 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 // Works with MinIO (local), AWS S3, Supabase Storage, etc.
 // Configure via STORAGE_* env vars in .env.local
 
-const endpoint = process.env.STORAGE_ENDPOINT    // e.g. "http://localhost:9000"
-const bucket   = process.env.STORAGE_BUCKET ?? 'influctor'
-const region   = process.env.STORAGE_REGION  ?? 'us-east-1'
-const publicUrl = process.env.STORAGE_PUBLIC_URL  // e.g. "http://localhost:9000/influctor"
-
 function getClient() {
+  const endpoint = process.env.STORAGE_ENDPOINT
+  const region   = process.env.STORAGE_REGION ?? 'us-east-1'
   if (!endpoint || !process.env.STORAGE_ACCESS_KEY || !process.env.STORAGE_SECRET_KEY) {
     throw new Error('Storage no configurado. Agrega STORAGE_ENDPOINT, STORAGE_ACCESS_KEY y STORAGE_SECRET_KEY en .env.local')
   }
@@ -38,7 +35,7 @@ export type StorageFolder = 'avatars' | 'documents' | 'media' | 'brands'
 export async function getPresignedPutUrl(key: string, mime: string, ttl = 300) {
   const client = getClient()
   const command = new PutObjectCommand({
-    Bucket:      bucket,
+    Bucket:      process.env.STORAGE_BUCKET ?? 'influctor',
     Key:         key,
     ContentType: mime,
   })
@@ -51,7 +48,10 @@ export async function getPresignedPutUrl(key: string, mime: string, ttl = 300) {
  * Assumes the bucket or the object has public read access.
  */
 export function getPublicUrl(key: string): string {
-  const base = (publicUrl ?? `${endpoint}/${bucket}`).replace(/\/$/, '')
+  const pubUrl  = process.env.STORAGE_PUBLIC_URL
+  const ep      = process.env.STORAGE_ENDPOINT
+  const bkt     = process.env.STORAGE_BUCKET ?? 'influctor'
+  const base    = (pubUrl ?? `${ep}/${bkt}`).replace(/\/$/, '')
   return `${base}/${key}`
 }
 
@@ -60,7 +60,7 @@ export function getPublicUrl(key: string): string {
  */
 export async function deleteObject(key: string) {
   const client = getClient()
-  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
+  await client.send(new DeleteObjectCommand({ Bucket: process.env.STORAGE_BUCKET ?? 'influctor', Key: key }))
 }
 
 /**
@@ -69,7 +69,8 @@ export async function deleteObject(key: string) {
  * Example: "avatars/usr_abc123_1713200000000.jpg"
  */
 export function buildKey(folder: StorageFolder, userId: string, filename: string): string {
-  const ext  = filename.split('.').pop()?.toLowerCase() ?? 'bin'
-  const ts   = Date.now()
+  const dotIdx = filename.lastIndexOf('.')
+  const ext    = dotIdx > 0 ? filename.slice(dotIdx + 1).toLowerCase() : 'bin'
+  const ts     = Date.now()
   return `${folder}/${userId}_${ts}.${ext}`
 }
