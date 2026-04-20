@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const sessionUser = await getApiSession()
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-  const { ok, retryAfter } = rateLimit(rateLimitKey(req, sessionUser.id), { limit: 10, window: 60 })
+  const { ok, retryAfter } = await rateLimit(rateLimitKey(req, sessionUser.id), { limit: 10, window: 60 })
   if (!ok) {
     return NextResponse.json(
       { error: `Demasiadas solicitudes. Intenta de nuevo en ${retryAfter} segundos.` },
