@@ -211,6 +211,207 @@ export function buildWeeklyReportHtml(d: WeeklyReportData): string {
 </html>`
 }
 
+// ─── Deal stage notification ─────────────────────────────────────────────────
+
+export interface DealStageData {
+  userName:  string
+  userEmail: string
+  brand:     string
+  oldStage:  string
+  newStage:  string
+  value:     number
+  currency:  string
+}
+
+const STAGE_LABEL: Record<string, string> = {
+  outreach:    'Outreach',
+  negotiation: 'Negociación',
+  contract:    'Contrato',
+  active:      'Activo',
+  delivered:   'Entregado',
+  completed:   'Completado',
+  declined:    'Rechazado',
+}
+
+const STAGE_COLOR: Record<string, string> = {
+  outreach:    '#6b7280',
+  negotiation: '#f59e0b',
+  contract:    '#3b82f6',
+  active:      '#7c3aed',
+  delivered:   '#06b6d4',
+  completed:   '#10b981',
+  declined:    '#ef4444',
+}
+
+export function buildDealStageHtml(d: DealStageData): string {
+  const newColor  = STAGE_COLOR[d.newStage]  ?? '#7c3aed'
+  const newLabel  = STAGE_LABEL[d.newStage]  ?? d.newStage
+  const oldLabel  = STAGE_LABEL[d.oldStage]  ?? d.oldStage
+  const isWon     = d.newStage === 'completed'
+  const isLost    = d.newStage === 'declined'
+  const emoji     = isWon ? '🎉' : isLost ? '😔' : '📬'
+  const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Deal actualizado · Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%">
+        <tr><td style="background:linear-gradient(135deg,#1e1b4b,#0f0f1e);border-radius:16px 16px 0 0;padding:28px 32px;border:1px solid #1a1a2e;border-bottom:none">
+          <div style="font-size:28px;margin-bottom:8px">${emoji}</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff">Deal actualizado</div>
+          <div style="font-size:13px;color:#8b5cf6;margin-top:4px">Hola ${d.userName}, hay novedades en tu pipeline</div>
+        </td></tr>
+        <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <div style="font-size:18px;font-weight:700;color:#ffffff;margin-bottom:6px">${d.brand}</div>
+          <div style="font-size:13px;color:#6b7280;margin-bottom:20px">Valor: <span style="color:#ffffff;font-weight:600">${d.currency} ${d.value.toLocaleString()}</span></div>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="text-align:center;background:#13131f;border:1px solid #1a1a2e;border-radius:10px;padding:14px">
+                <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Antes</div>
+                <div style="font-size:14px;font-weight:600;color:#9ca3af">${oldLabel}</div>
+              </td>
+              <td style="text-align:center;width:40px;color:#4b5563;font-size:20px">→</td>
+              <td style="text-align:center;background:#13131f;border:2px solid ${newColor};border-radius:10px;padding:14px">
+                <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Ahora</div>
+                <div style="font-size:14px;font-weight:700;color:${newColor}">${newLabel}</div>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+        <tr><td style="background:#09090f;padding:20px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px;text-align:center">
+          <a href="${appUrl}/deals" style="display:inline-block;background:#7c3aed;color:#ffffff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:8px;text-decoration:none">Ver pipeline →</a>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">© ${new Date().getFullYear()} Influctor</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendDealStageNotification(data: DealStageData) {
+  if (!process.env.RESEND_API_KEY) return
+  const label = STAGE_LABEL[data.newStage] ?? data.newStage
+  return resend.emails.send({
+    from: FROM_EMAIL,
+    to:   data.userEmail,
+    subject: `📬 Deal con ${data.brand} avanzó a ${label}`,
+    html: buildDealStageHtml(data),
+  })
+}
+
+// ─── Goal achieved notification ───────────────────────────────────────────────
+
+export interface GoalAchievedData {
+  userName:    string
+  userEmail:   string
+  goalTitle:   string
+  targetValue: number
+  unit:        string
+  category:    string
+}
+
+export function buildGoalAchievedHtml(d: GoalAchievedData): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Meta alcanzada · Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%">
+        <tr><td style="background:linear-gradient(135deg,#064e3b,#0f0f1e);border-radius:16px 16px 0 0;padding:28px 32px;border:1px solid #1a1a2e;border-bottom:none">
+          <div style="font-size:36px;margin-bottom:8px">🎯</div>
+          <div style="font-size:22px;font-weight:700;color:#ffffff">¡Meta alcanzada!</div>
+          <div style="font-size:13px;color:#34d399;margin-top:4px">Felicitaciones, ${d.userName} — lo lograste</div>
+        </td></tr>
+        <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e;text-align:center">
+          <div style="font-size:16px;font-weight:600;color:#ffffff;margin-bottom:6px">${d.goalTitle}</div>
+          <div style="font-size:28px;font-weight:800;color:#34d399;margin:12px 0">${d.targetValue.toLocaleString()} ${d.unit}</div>
+          <div style="background:#064e3b;border:1px solid #059669;border-radius:8px;padding:10px 16px;display:inline-block;margin-top:6px">
+            <span style="font-size:12px;font-weight:700;color:#34d399">✓ 100% completado</span>
+          </div>
+        </td></tr>
+        <tr><td style="background:#09090f;padding:20px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px;text-align:center">
+          <a href="${appUrl}/goals" style="display:inline-block;background:#059669;color:#ffffff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:8px;text-decoration:none">Ver mis metas →</a>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">© ${new Date().getFullYear()} Influctor</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendGoalAchievedNotification(data: GoalAchievedData) {
+  if (!process.env.RESEND_API_KEY) return
+  return resend.emails.send({
+    from: FROM_EMAIL,
+    to:   data.userEmail,
+    subject: `🎯 ¡Meta alcanzada! ${data.goalTitle}`,
+    html: buildGoalAchievedHtml(data),
+  })
+}
+
+// ─── AI limit warning ─────────────────────────────────────────────────────────
+
+export interface AiLimitWarningData {
+  userName:  string
+  userEmail: string
+  used:      number
+  limit:     number
+  planName:  string
+}
+
+export function buildAiLimitWarningHtml(d: AiLimitWarningData): string {
+  const pct     = Math.round((d.used / d.limit) * 100)
+  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Límite de IA · Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%">
+        <tr><td style="background:linear-gradient(135deg,#451a03,#0f0f1e);border-radius:16px 16px 0 0;padding:28px 32px;border:1px solid #1a1a2e;border-bottom:none">
+          <div style="font-size:28px;margin-bottom:8px">⚡</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff">Estás al ${pct}% de tu límite de IA</div>
+          <div style="font-size:13px;color:#f59e0b;margin-top:4px">Hola ${d.userName} · Plan ${d.planName} · ${d.used} de ${d.limit} generaciones usadas</div>
+        </td></tr>
+        <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <div style="background:#1a1a2e;border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px">
+            <div style="background:linear-gradient(90deg,#f59e0b,#ef4444);height:8px;width:${pct}%;border-radius:6px"></div>
+          </div>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:20px">${d.limit - d.used} generaciones restantes este mes</div>
+          <div style="font-size:13px;color:#d1d5db;line-height:1.6">
+            Cuando alcances el límite no podrás usar las funciones de IA hasta el próximo mes,
+            o puedes actualizar tu plan para continuar sin interrupciones.
+          </div>
+        </td></tr>
+        <tr><td style="background:#09090f;padding:20px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px;text-align:center">
+          <a href="${appUrl}/pricing" style="display:inline-block;background:#d97706;color:#ffffff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:8px;text-decoration:none">Ver planes →</a>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">© ${new Date().getFullYear()} Influctor</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendAiLimitWarning(data: AiLimitWarningData) {
+  if (!process.env.RESEND_API_KEY) return
+  return resend.emails.send({
+    from: FROM_EMAIL,
+    to:   data.userEmail,
+    subject: `⚡ Estás al ${Math.round((data.used / data.limit) * 100)}% de tu límite de IA en Influctor`,
+    html: buildAiLimitWarningHtml(data),
+  })
+}
+
 // ─── Send function ─────────────────────────────────────────────────────────────
 
 export async function sendWeeklyReport(data: WeeklyReportData) {

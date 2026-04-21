@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
+import { sendAiLimitWarning } from '@/lib/email'
 
 const SYSTEM_PROMPT = `Eres un experto en marketing digital, redes sociales y creación de contenido.
 Tienes más de 10 años de experiencia ayudando a creadores de contenido a crecer en Instagram, TikTok, YouTube, LinkedIn y Twitter.
@@ -177,8 +178,10 @@ export async function POST(req: NextRequest) {
     try {
       if (user) {
         const now = new Date()
-        const resetAt = user.aiUsageResetAt
+        const resetAt  = user.aiUsageResetAt
         const needsReset = !resetAt || resetAt.getMonth() !== now.getMonth() || resetAt.getFullYear() !== now.getFullYear()
+        const prevUsage  = needsReset ? 0 : user.aiUsageThisMonth
+        const newUsage   = prevUsage + 1
 
         await prisma.$transaction([
           prisma.aiUsage.create({
@@ -198,6 +201,24 @@ export async function POST(req: NextRequest) {
             },
           }),
         ])
+
+        // Fire-and-forget: warn once when crossing 80% of the monthly limit
+        const plan  = getPlan(user.plan)
+        const limit = plan.limits.aiGenerationsPerMonth
+        if (
+          limit !== Infinity &&
+          prevUsage / limit < 0.8 &&
+          newUsage  / limit >= 0.8 &&
+          sessionUser.email
+        ) {
+          sendAiLimitWarning({
+            userName:  sessionUser.name ?? 'Creador',
+            userEmail: sessionUser.email,
+            used:      newUsage,
+            limit,
+            planName:  plan.name,
+          }).catch(() => {})
+        }
       }
     } catch (e) {
       // Non-blocking
