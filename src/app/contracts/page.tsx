@@ -4,18 +4,26 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/session'
 
 export default async function ContractsPage() {
-  let plan = 'free'
-  try {
-    const user = await getSessionUser()
-    if (user) plan = user.plan ?? 'free'
-  } catch {}
+  const user = await getSessionUser()
+  const plan = user?.plan ?? 'free'
+
+  const contracts = user
+    ? await prisma.contract.findMany({
+        where:   { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        select:  { id: true, title: true, type: true, createdAt: true },
+      })
+    : []
 
   return (
     <DashboardLayout
       title="Contratos"
       description="Genera contratos profesionales para tus colaboraciones y brand deals"
     >
-      <ContractsClient plan={plan} />
+      <ContractsClient
+        plan={plan}
+        initialContracts={contracts.map(c => ({ ...c, createdAt: c.createdAt.toISOString() }))}
+      />
     </DashboardLayout>
   )
 }
