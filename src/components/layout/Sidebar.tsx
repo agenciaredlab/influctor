@@ -8,7 +8,7 @@ import {
   Settings, Zap, ChevronRight, Flame, DollarSign, Handshake,
   CalendarDays, BookOpen, Building2, Users2, FileText,
   Hash, SplitSquareVertical, RefreshCw, Search, TrendingUp,
-  Mail, Trophy, ClipboardList, CreditCard, ShoppingBag
+  Mail, Trophy, ClipboardList, CreditCard, ShoppingBag, ShieldCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -108,8 +108,9 @@ export default function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
 
-  const userName = session?.user?.name || session?.user?.email?.split('@')[0] || 'Usuario'
-  const userPlan = (session?.user as any)?.plan ?? 'free'
+  const userName  = session?.user?.name || session?.user?.email?.split('@')[0] || 'Usuario'
+  const userPlan  = (session?.user as any)?.plan    ?? 'free'
+  const isAdmin   = (session?.user as any)?.isAdmin ?? false
   const planLabel = PLAN_LABELS[userPlan] ?? 'Plan Free'
   const initial = userName.charAt(0).toUpperCase()
 
@@ -140,6 +141,9 @@ export default function Sidebar() {
         </div>
         <NavItem href="/settings" label="Configuración" icon={Settings} isActive={pathname === '/settings'} />
         <NavItem href="/pricing" label="Planes & Precios" icon={CreditCard} isActive={pathname === '/pricing'} />
+        {isAdmin && (
+          <NavItem href="/admin" label="Admin" icon={ShieldCheck} isActive={pathname.startsWith('/admin')} badge="ADMIN" badgeColor="text-red-300 bg-red-500/20 border-red-500/30" />
+        )}
       </nav>
 
       {/* User + Plan badge */}

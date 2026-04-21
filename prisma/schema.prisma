@@ -25,6 +25,7 @@ model User {
   planCurrentPeriodEnd DateTime?
   aiUsageThisMonth   Int      @default(0)
   aiUsageResetAt     DateTime?
+  isAdmin            Boolean  @default(false)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   accounts    Account[]

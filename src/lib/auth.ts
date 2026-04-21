@@ -68,9 +68,10 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { plan: true },
+          select: { plan: true, isAdmin: true },
         })
-        token.plan = dbUser?.plan ?? 'free'
+        token.plan    = dbUser?.plan    ?? 'free'
+        token.isAdmin = dbUser?.isAdmin ?? false
       }
       // Allow client to call useSession().update({ plan }) after Stripe upgrade
       if (trigger === 'update' && updSession?.plan) {
@@ -81,8 +82,9 @@ export const authOptions: NextAuthOptions = {
     // Expose id and plan on the session object
     async session({ session, token }) {
       if (session.user) {
-        session.user.id   = token.id as string
-        session.user.plan = token.plan as string
+        session.user.id      = token.id      as string
+        session.user.plan    = token.plan    as string
+        session.user.isAdmin = token.isAdmin as boolean
       }
       return session
     },

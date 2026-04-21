@@ -26,5 +26,6 @@ export const config = {
     '/business/:path*',
     '/settings/:path*',
     '/pricing/:path*',
+    '/admin/:path*',
   ],
 }
