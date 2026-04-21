@@ -2,6 +2,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Settings, User, Key, Shield, Link2 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import InstagramConnect from '@/components/social/InstagramConnect'
+import TikTokConnect from '@/components/social/TikTokConnect'
 import { getSessionUser } from '@/lib/session'
 
 export default async function SettingsPage() {
@@ -54,15 +55,8 @@ export default async function SettingsPage() {
             {/* Instagram */}
             <InstagramConnect />
 
-            {/* TikTok — Coming Soon */}
-            <div className="flex items-center gap-3 p-4 bg-[#0f0f1a] border border-[#1e1e35] rounded-xl opacity-60">
-              <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center text-xl">🎵</div>
-              <div className="flex-1">
-                <div className="font-semibold text-white text-sm">TikTok</div>
-                <div className="text-xs text-gray-500">Próximamente</div>
-              </div>
-              <span className="text-[10px] px-2 py-1 rounded-full bg-gray-700 text-gray-400">Próximo</span>
-            </div>
+            {/* TikTok */}
+            <TikTokConnect />
 
             {/* YouTube — Coming Soon */}
             <div className="flex items-center gap-3 p-4 bg-[#0f0f1a] border border-[#1e1e35] rounded-xl opacity-60">
@@ -145,6 +139,35 @@ export default async function SettingsPage() {
                   <li>Copia App ID y App Secret a .env.local</li>
                   <li>Reinicia el servidor</li>
                 </ol>
+              </div>
+            </div>
+
+            {/* TikTok App */}
+            <div className="p-4 rounded-lg bg-[#0f0f1a] border border-[#1e1e35]">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded bg-[#EE1D52]/20 flex items-center justify-center text-xs">🎵</div>
+                  <span className="text-sm font-medium text-white">TikTok Developer App</span>
+                </div>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#EE1D5215', color: '#EE1D52' }}>Conexión TikTok</span>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">
+                Crea tu app en{' '}
+                <span className="text-[#69C9D0]">developers.tiktok.com</span>
+                {' '}→ Login Kit → Add products
+              </p>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 bg-[#0a0a14] rounded px-3 py-2 border border-[#1a1a2e]">
+                  <code className="text-xs text-gray-500 flex-1">TIKTOK_CLIENT_KEY=awxxxxxx</code>
+                </div>
+                <div className="flex items-center gap-2 bg-[#0a0a14] rounded px-3 py-2 border border-[#1a1a2e]">
+                  <code className="text-xs text-gray-500 flex-1">TIKTOK_CLIENT_SECRET=xxxxxxxx</code>
+                </div>
+              </div>
+              <div className="mt-3 p-2.5 bg-[#EE1D52]/5 border border-[#EE1D52]/20 rounded-lg">
+                <p className="text-[10px] text-[#EE1D52] font-medium mb-1">Redirect URI a configurar:</p>
+                <code className="text-[10px] text-gray-400">{'{APP_URL}'}/api/auth/tiktok/callback</code>
+                <p className="text-[10px] text-gray-500 mt-1">Scopes necesarios: user.info.basic · user.info.stats · video.list</p>
               </div>
             </div>
           </div>
