@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       newStage:  stage,
       value:     deal.value,
       currency:  deal.currency,
-    }).catch(() => {})
+    })?.catch(() => {})
   }
 
   return NextResponse.json(deal)
@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       newStage:  data.stage,
       value:     deal.value,
       currency:  deal.currency,
-    }).catch(() => {})
+    })?.catch(() => {})
   }
 
   return NextResponse.json(deal)

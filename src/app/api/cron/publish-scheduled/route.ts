@@ -1,71 +1,127 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { sendPublishFailedNotification } from '@/lib/email'
 
-// This route is called by a cron job every minute (e.g. Vercel Cron or external service).
-// It finds posts that are scheduled for "now" and publishes them to Instagram.
-//
-// Setup options:
-// 1. Vercel: add to vercel.json:
-//    { "crons": [{ "path": "/api/cron/publish-scheduled", "schedule": "* * * * *" }] }
-//
-// 2. Any cron service (cron-job.org, GitHub Actions, etc.):
-//    GET https://yourdomain.com/api/cron/publish-scheduled
-//    every 1 minute
-//
-// 3. Local dev: run manually or use a tool like `node-cron`
+/**
+ * Called every minute by Vercel Cron or any external scheduler.
+ *
+ * Retry strategy (no schema change required — backoff computed from scheduledAt + attempts):
+ *   attempt 0 → immediately at scheduledAt
+ *   attempt 1 → 5 min  after scheduledAt
+ *   attempt 2 → 20 min after scheduledAt  (5 + 15)
+ *   attempt 3 → 50 min after scheduledAt  (5 + 15 + 30)  → last attempt
+ *   after 4 failures → mark status = 'failed', send email
+ */
 
-const CRON_SECRET = process.env.CRON_SECRET
+const MAX_ATTEMPTS = 4
+
+// Cumulative minute offsets from scheduledAt for each retry attempt
+const BACKOFF_OFFSETS = [0, 5, 20, 50]
+
+function nextRetryTime(scheduledAt: Date, attempts: number): Date {
+  const offsetMin = BACKOFF_OFFSETS[Math.min(attempts, BACKOFF_OFFSETS.length - 1)]
+  return new Date(scheduledAt.getTime() + offsetMin * 60 * 1000)
+}
 
 export async function GET(req: NextRequest) {
-  // Optional: protect with a secret header
-  if (CRON_SECRET) {
-    const authHeader = req.headers.get('authorization')
-    if (authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (process.env.CRON_SECRET) {
+    const auth = req.headers.get('authorization')
+    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
   }
 
   const now = new Date()
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+  // Look back 90 min to cover all possible retry windows (max offset is 50 min)
+  const lookback = new Date(now.getTime() - 90 * 60 * 1000)
 
-  // Find all posts scheduled within the last 5 minutes that haven't been published
-  // (5-min window handles cron delays)
-  const duePosts = await prisma.contentPost.findMany({
+  // Fetch all scheduled posts that haven't been published and haven't exceeded attempts
+  const candidates = await prisma.contentPost.findMany({
     where: {
-      status: 'scheduled',
-      scheduledAt: { gte: fiveMinutesAgo, lte: now },
+      status:          'scheduled',
+      scheduledAt:     { gte: lookback, lte: now },
       publishedMediaId: null,
-      publishAttempts: { lt: 3 }, // don't retry more than 3 times
+      publishAttempts: { lt: MAX_ATTEMPTS },
+    },
+    include: {
+      user: { select: { id: true, email: true, name: true } },
     },
   })
+
+  // Apply backoff filter: only posts whose next retry time has arrived
+  const duePosts = candidates.filter(p =>
+    p.scheduledAt && nextRetryTime(p.scheduledAt, p.publishAttempts) <= now
+  )
 
   if (duePosts.length === 0) {
     return NextResponse.json({ processed: 0, message: 'No posts due' })
   }
 
-  const results: { postId: string; success: boolean; error?: string }[] = []
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+
+  const results: { postId: string; success: boolean; attempt: number; error?: string }[] = []
 
   for (const post of duePosts) {
+    const attempt = post.publishAttempts + 1 // this will be attempt N (1-indexed)
+    let success = false
+    let errorMsg: string | undefined
+
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/social/instagram/publish`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ postId: post.id }),
-        }
-      )
+      // Call the publish endpoint — it handles the Instagram API logic
+      const res = await fetch(`${appUrl}/api/social/instagram/publish`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ postId: post.id }),
+      })
       const data = await res.json()
-      results.push({ postId: post.id, success: res.ok, error: data.error })
+      success  = res.ok
+      errorMsg = data.error
     } catch (e: any) {
-      results.push({ postId: post.id, success: false, error: e.message })
+      errorMsg = e.message
+    }
+
+    results.push({ postId: post.id, success, attempt, error: errorMsg })
+
+    if (!success) {
+      const exhausted = attempt >= MAX_ATTEMPTS
+
+      if (exhausted) {
+        // Mark as permanently failed
+        await prisma.contentPost.update({
+          where: { id: post.id },
+          data:  { status: 'failed' },
+        })
+
+        // Notify the owner — fire-and-forget
+        if (post.user?.email && post.scheduledAt) {
+          sendPublishFailedNotification({
+            userName:    post.user.name  ?? 'Creador',
+            userEmail:   post.user.email,
+            postTitle:   post.title,
+            platform:    post.platform,
+            scheduledAt: post.scheduledAt,
+            attempts:    attempt,
+            lastError:   errorMsg ?? 'Error desconocido',
+          })?.catch(() => {})
+        }
+      } else {
+        const nextAt = nextRetryTime(post.scheduledAt!, attempt)
+        console.log(
+          `[CRON] Post ${post.id} failed (attempt ${attempt}/${MAX_ATTEMPTS}). ` +
+          `Next retry at ${nextAt.toISOString()}`
+        )
+      }
     }
   }
 
   const succeeded = results.filter(r => r.success).length
-  const failed = results.filter(r => !r.success).length
+  const failed    = results.filter(r => !r.success).length
+  const exhausted = results.filter(r => !r.success && r.attempt >= MAX_ATTEMPTS).length
 
-  console.log(`[CRON] publish-scheduled: ${succeeded} published, ${failed} failed`)
+  console.log(
+    `[CRON] publish-scheduled: ${succeeded} published, ${failed} failed` +
+    (exhausted ? `, ${exhausted} permanently failed` : '')
+  )
 
-  return NextResponse.json({ processed: duePosts.length, succeeded, failed, results })
+  return NextResponse.json({ processed: duePosts.length, succeeded, failed, exhausted, results })
 }

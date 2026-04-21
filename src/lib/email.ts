@@ -412,6 +412,68 @@ export async function sendAiLimitWarning(data: AiLimitWarningData) {
   })
 }
 
+// ─── Publish failed notification ─────────────────────────────────────────────
+
+export interface PublishFailedData {
+  userName:    string
+  userEmail:   string
+  postTitle:   string
+  platform:    string
+  scheduledAt: Date
+  attempts:    number
+  lastError:   string
+}
+
+export function buildPublishFailedHtml(d: PublishFailedData): string {
+  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const dateStr  = d.scheduledAt.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })
+  const timeStr  = d.scheduledAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Error al publicar · Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%">
+        <tr><td style="background:linear-gradient(135deg,#450a0a,#0f0f1e);border-radius:16px 16px 0 0;padding:28px 32px;border:1px solid #1a1a2e;border-bottom:none">
+          <div style="font-size:28px;margin-bottom:8px">⚠️</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff">No se pudo publicar tu post</div>
+          <div style="font-size:13px;color:#f87171;margin-top:4px">Hola ${d.userName} — fallaron los ${d.attempts} intentos automáticos</div>
+        </td></tr>
+        <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <div style="font-size:15px;font-weight:600;color:#ffffff;margin-bottom:4px">${d.postTitle}</div>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:20px">Programado para ${dateStr} a las ${timeStr} · ${d.platform}</div>
+          <div style="background:#1a0a0a;border:1px solid #7f1d1d;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+            <div style="font-size:10px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Último error</div>
+            <div style="font-size:12px;color:#fca5a5;font-family:monospace;word-break:break-all">${d.lastError}</div>
+          </div>
+          <div style="font-size:13px;color:#9ca3af;line-height:1.6">
+            Puedes revisar el post en tu calendario de contenido y volver a intentarlo manualmente,
+            o corregir el problema (token expirado, URL inválida, etc.) antes de reprogramarlo.
+          </div>
+        </td></tr>
+        <tr><td style="background:#09090f;padding:20px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px;text-align:center">
+          <a href="${appUrl}/calendar" style="display:inline-block;background:#dc2626;color:#ffffff;font-size:13px;font-weight:600;padding:11px 24px;border-radius:8px;text-decoration:none">Ver calendario →</a>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">© ${new Date().getFullYear()} Influctor</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendPublishFailedNotification(data: PublishFailedData) {
+  if (!process.env.RESEND_API_KEY) return
+  return resend.emails.send({
+    from: FROM_EMAIL,
+    to:   data.userEmail,
+    subject: `⚠️ No se pudo publicar: ${data.postTitle}`,
+    html: buildPublishFailedHtml(data),
+  })
+}
+
 // ─── Send function ─────────────────────────────────────────────────────────────
 
 export async function sendWeeklyReport(data: WeeklyReportData) {

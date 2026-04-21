@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
             used:      newUsage,
             limit,
             planName:  plan.name,
-          }).catch(() => {})
+          })?.catch(() => {})
         }
       }
     } catch (e) {

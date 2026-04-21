@@ -10,6 +10,7 @@ import {
   buildDealStageHtml,
   buildGoalAchievedHtml,
   buildAiLimitWarningHtml,
+  buildPublishFailedHtml,
 } from '../email'
 
 // ─── Deal stage notification ─────────────────────────────────────────────────
@@ -160,5 +161,52 @@ describe('buildAiLimitWarningHtml', () => {
     const html = buildAiLimitWarningHtml({ ...base, used: 180, limit: 200 })
     expect(html).toContain('90%')
     expect(html).toContain('width:90%')
+  })
+})
+
+// ─── Publish failed notification ─────────────────────────────────────────────
+
+describe('buildPublishFailedHtml', () => {
+  const base = {
+    userName:    'María',
+    userEmail:   'maria@example.com',
+    postTitle:   'Nuevo reel de fitness',
+    platform:    'instagram',
+    scheduledAt: new Date('2025-06-15T14:00:00Z'),
+    attempts:    4,
+    lastError:   'The access token has expired',
+  }
+
+  it('includes post title', () => {
+    expect(buildPublishFailedHtml(base)).toContain('Nuevo reel de fitness')
+  })
+
+  it('includes platform', () => {
+    expect(buildPublishFailedHtml(base)).toContain('instagram')
+  })
+
+  it('includes user name', () => {
+    expect(buildPublishFailedHtml(base)).toContain('María')
+  })
+
+  it('includes attempt count', () => {
+    expect(buildPublishFailedHtml(base)).toContain('4')
+  })
+
+  it('includes the last error message', () => {
+    expect(buildPublishFailedHtml(base)).toContain('The access token has expired')
+  })
+
+  it('includes link to /calendar', () => {
+    expect(buildPublishFailedHtml(base)).toContain('/calendar')
+  })
+
+  it('uses warning styling (red gradient)', () => {
+    expect(buildPublishFailedHtml(base)).toContain('#450a0a')
+  })
+
+  it('escapes no HTML in error message (plain text only)', () => {
+    const html = buildPublishFailedHtml({ ...base, lastError: 'API rate limit: 100 req/s' })
+    expect(html).toContain('API rate limit: 100 req/s')
   })
 })

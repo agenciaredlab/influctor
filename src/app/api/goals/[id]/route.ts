@@ -46,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       targetValue: parseFloat(targetValue),
       unit:        unit || '',
       category,
-    }).catch(() => {})
+    })?.catch(() => {})
   }
 
   return NextResponse.json(goal)
