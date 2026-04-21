@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  Flame, Zap, TrendingUp, Clock, Heart, Share2, Eye, MessageCircle,
-  Sparkles, CheckCircle2, XCircle, AlertCircle, ChevronRight,
-  BarChart2, RefreshCw, Copy, Check
+  Flame, Zap, TrendingUp, Clock, Heart, Share2, Eye,
+  Sparkles, CheckCircle2, AlertCircle, ChevronRight,
+  BarChart2, Copy, Check, History, Trash2
 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -98,6 +98,17 @@ interface ScoreResult {
   hook: string
 }
 
+interface HistoryItem {
+  id:          string
+  platform:    string
+  format:      string | null
+  hook:        string
+  score:       number
+  factors:     string   // JSON
+  suggestions: string   // JSON
+  createdAt:   string
+}
+
 export default function ViralLabClient() {
   const [platform, setPlatform] = useState('instagram')
   const [format, setFormat] = useState('')
@@ -110,6 +121,44 @@ export default function ViralLabClient() {
   const [loadingAI, setLoadingAI] = useState(false)
   const [activeHookCategory, setActiveHookCategory] = useState<keyof typeof VIRAL_HOOKS>('curiosity')
   const [copiedHook, setCopiedHook] = useState<string | null>(null)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  useEffect(() => {
+    fetchHistory()
+  }, [])
+
+  async function fetchHistory() {
+    setHistoryLoading(true)
+    try {
+      const res  = await fetch('/api/viral-lab')
+      const data = await res.json()
+      if (res.ok) setHistory(data.analyses ?? [])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  async function saveAnalysis(scoreResult: ScoreResult) {
+    await fetch('/api/viral-lab', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        platform:    scoreResult.platform,
+        format:      scoreResult.format,
+        hook:        scoreResult.hook,
+        score:       scoreResult.total,
+        factors:     scoreResult.factors,
+        suggestions: scoreResult.suggestions,
+      }),
+    })
+    fetchHistory()
+  }
+
+  async function deleteAnalysis(id: string) {
+    await fetch(`/api/viral-lab?id=${id}`, { method: 'DELETE' })
+    setHistory(prev => prev.filter(a => a.id !== id))
+  }
 
   const copyHook = (h: string) => {
     setHook(h)
@@ -160,7 +209,9 @@ export default function ViralLabClient() {
     if (trendScore < 10) suggestions.push('Alinea tu contenido con tendencias actuales del nicho para mayor distribución')
     if (total >= 80) suggestions.unshift('¡Excelente! Tu contenido tiene alto potencial viral. Publica en el horario óptimo')
 
-    setResult({ total, factors, suggestions, platform, format, hook })
+    const scoreResult: ScoreResult = { total, factors, suggestions, platform, format, hook }
+    setResult(scoreResult)
+    saveAnalysis(scoreResult).catch(() => {})
   }
 
   const getAITips = async () => {
@@ -535,6 +586,56 @@ export default function ViralLabClient() {
           )}
         </div>
       </div>
+
+      {/* Analysis History */}
+      {(history.length > 0 || historyLoading) && (
+        <Card>
+          <div className="flex items-center gap-2 mb-4">
+            <History size={15} className="text-violet-400" />
+            <h3 className="text-sm font-semibold text-white">Historial de análisis</h3>
+            <span className="text-xs text-gray-600 ml-auto">{history.length} análisis guardados</span>
+          </div>
+
+          {historyLoading && history.length === 0 ? (
+            <div className="text-xs text-gray-600 text-center py-4">Cargando historial...</div>
+          ) : (
+            <div className="space-y-2">
+              {history.map((item) => {
+                const zone = getScoreZone(item.score)
+                const PLATFORM_EMOJI: Record<string, string> = { instagram: '📸', tiktok: '🎵', youtube: '▶️', linkedin: '💼' }
+                return (
+                  <div key={item.id}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-[#0f0f1a] border border-[#1e1e35] hover:border-[#2a2a4a] transition-colors group">
+                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center text-sm font-black flex-shrink-0', zone.color, zone.bg.split(' ')[0])}>
+                      {item.score}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs text-gray-500">{PLATFORM_EMOJI[item.platform] ?? '🌐'} {item.platform}</span>
+                        {item.format && <span className="text-[10px] text-gray-600">· {item.format}</span>}
+                        <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ml-auto', zone.bg, zone.color)}>
+                          {zone.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">{item.hook || '(sin hook)'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[10px] text-gray-600 hidden group-hover:block">
+                        {new Date(item.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                      </span>
+                      <button
+                        onClick={() => deleteAnalysis(item.id)}
+                        className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   )
 }

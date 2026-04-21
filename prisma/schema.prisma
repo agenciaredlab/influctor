@@ -43,6 +43,7 @@ model User {
   subscription Subscription?
   marketplaceApplications MarketplaceApplication[]
   contracts       Contract[]
+  viralAnalyses   ViralAnalysis[]
 }
 
 // ── NextAuth models ──────────────────────────────────────────────────────────
@@ -455,6 +456,25 @@ model Contract {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+// ========================
+// VIRAL LAB
+// ========================
+
+model ViralAnalysis {
+  id          String   @id @default(cuid())
+  platform    String
+  format      String?
+  hook        String
+  score       Int
+  factors     String   // JSON of ViralFactors {hookPower,formatFit,emotionFactor,shareability,trendAlignment}
+  suggestions String   // JSON array of suggestion strings
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
 
   @@index([userId, createdAt])
 }
