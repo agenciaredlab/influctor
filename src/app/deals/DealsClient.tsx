@@ -7,7 +7,7 @@ import { z } from 'zod'
 import {
   Handshake, Plus, DollarSign, TrendingUp, Edit2, Trash2,
   ChevronRight, Mail, Phone, Calendar, Tag, AlertCircle, Check,
-  MessageSquare, FileText, Zap, Clock, Star
+  MessageSquare, FileText, Zap, Clock, Star, Download
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -274,9 +274,19 @@ export default function DealsClient({ deals: initialDeals, userId }: DealsClient
             Lista
           </button>
         </div>
-        <Button onClick={openCreate} icon={<Plus size={14} />} size="sm">
-          Nuevo Deal
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/export?type=deals"
+            download
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1e1e35] text-gray-400 hover:text-gray-200 border border-[#2a2a45] hover:border-gray-600 transition-all"
+          >
+            <Download size={13} />
+            CSV
+          </a>
+          <Button onClick={openCreate} icon={<Plus size={14} />} size="sm">
+            Nuevo Deal
+          </Button>
+        </div>
       </div>
 
       {/* Kanban View */}

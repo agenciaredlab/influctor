@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import {
   DollarSign, TrendingUp, Users, Star, ChevronRight, Info,
-  Check, Zap, Calculator, BarChart2, Target
+  Check, Zap, Calculator, BarChart2, Target, Download
 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -215,6 +215,18 @@ export default function MonetizationClient({ data }: MonetizationClientProps) {
 
   return (
     <div className="space-y-6">
+      {/* Top bar */}
+      <div className="flex items-center justify-end">
+        <a
+          href="/api/export?type=income"
+          download
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[#1e1e35] text-gray-400 hover:text-gray-200 border border-[#2a2a45] hover:border-gray-600 transition-all"
+        >
+          <Download size={13} />
+          Exportar ingresos CSV
+        </a>
+      </div>
+
       {/* Header stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[

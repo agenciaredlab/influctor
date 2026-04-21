@@ -7,7 +7,7 @@ import { z } from 'zod'
 import {
   Megaphone, Plus, TrendingUp, DollarSign, Eye, Heart, MousePointer,
   Edit2, Trash2, Pause, Play, BarChart2, Users, Target, Zap,
-  Search, ChevronDown, ChevronUp
+  Search, ChevronDown, ChevronUp, Download
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -225,9 +225,19 @@ export default function CampaignsClient({ campaigns: initialCampaigns, userId }:
             </button>
           ))}
         </div>
-        <Button onClick={openCreate} icon={<Plus size={15} />}>
-          Nueva Campaña
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/export?type=campaigns"
+            download
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-[#1e1e35] text-gray-400 hover:text-gray-200 border border-[#2a2a45] hover:border-gray-600 transition-all"
+          >
+            <Download size={14} />
+            CSV
+          </a>
+          <Button onClick={openCreate} icon={<Plus size={15} />}>
+            Nueva Campaña
+          </Button>
+        </div>
       </div>
 
       {/* Campaigns List */}
