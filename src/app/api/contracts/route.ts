@@ -10,6 +10,7 @@ export async function GET(_req: NextRequest) {
   const contracts = await prisma.contract.findMany({
     where:   { userId: sessionUser.id },
     orderBy: { createdAt: 'desc' },
+    take:    100,
     select:  { id: true, title: true, type: true, createdAt: true },
   })
 

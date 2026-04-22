@@ -7,8 +7,9 @@ export async function GET(req: NextRequest) {
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const posts = await prisma.contentPost.findMany({
-    where: { userId: sessionUser.id },
+    where:   { userId: sessionUser.id },
     orderBy: { scheduledAt: 'asc' },
+    take:    500,
   })
   return NextResponse.json(posts)
 }

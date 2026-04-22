@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
   const profiles = await prisma.influencerProfile.findMany({
     where,
     orderBy: [{ verified: 'desc' }, { followers: 'desc' }],
+    take:    200,
   })
 
   return NextResponse.json({ profiles, total: profiles.length })

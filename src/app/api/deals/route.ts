@@ -7,8 +7,9 @@ export async function GET(req: NextRequest) {
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const deals = await prisma.brandDeal.findMany({
-    where: { userId: sessionUser.id },
+    where:   { userId: sessionUser.id },
     orderBy: { createdAt: 'desc' },
+    take:    200,
   })
   return NextResponse.json(deals)
 }
