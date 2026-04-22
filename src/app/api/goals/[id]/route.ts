@@ -38,7 +38,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   })
 
   // Fire-and-forget: notify when a goal is first completed
-  if (newProgress >= 100 && existing.score < 100 && sessionUser.email) {
+  if (newProgress >= 100 && (existing.score ?? 0) < 100 && sessionUser.email) {
     sendGoalAchievedNotification({
       userName:    sessionUser.name ?? 'Creador',
       userEmail:   sessionUser.email,
