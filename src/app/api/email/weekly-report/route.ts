@@ -4,15 +4,24 @@ import { sendWeeklyReport, type WeeklyReportData } from '@/lib/email'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
 
+function pctChange(current: number, previous: number) {
+  if (previous === 0) return current > 0 ? 100 : 0
+  return Math.round(((current - previous) / previous) * 100 * 10) / 10
+}
+
 // Builds a WeeklyReportData object from DB records for a given user
 export async function buildReportData(userId: string): Promise<WeeklyReportData> {
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('Usuario no encontrado')
 
-  const [goals, income, aiUsage] = await Promise.all([
+  const [goals, income, aiUsage, snapshots] = await Promise.all([
     prisma.goal.findMany({ where: { userId } }),
     prisma.income.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 30 }),
     prisma.aiUsage.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 }),
+    prisma.socialSnapshot.findMany({
+      where: { userId, date: { gte: new Date(Date.now() - 14 * 86400_000) } },
+      orderBy: { date: 'desc' },
+    }),
   ])
 
   // Weekly income sum
@@ -53,26 +62,63 @@ export async function buildReportData(userId: string): Promise<WeeklyReportData>
     target: Number(g.targetValue),
   }))
 
-  // Static demo data for metrics not yet tracked in real-time
+  // Derive social metrics from real snapshot data
+  const weekSnaps = snapshots.filter(s => new Date(s.date) >= weekStart)
+  const prevSnaps = snapshots.filter(s => {
+    const d = new Date(s.date)
+    return d >= prevWeekStart && d < weekStart
+  })
+
+  // Sum new followers across all platforms for the week
+  const followersGained = weekSnaps.reduce((s, snap) => s + snap.newFollowers, 0)
+  const prevFollowersGained = prevSnaps.reduce((s, snap) => s + snap.newFollowers, 0)
+  const followersChange = pctChange(followersGained, prevFollowersGained)
+
+  const weekReach = weekSnaps.reduce((s, snap) => s + snap.reach, 0)
+  const prevReach = prevSnaps.reduce((s, snap) => s + snap.reach, 0)
+  const reachChange = pctChange(weekReach, prevReach)
+
+  const engagements = weekSnaps.filter(s => s.engagement > 0)
+  const engagementRate = engagements.length > 0
+    ? engagements.reduce((s, snap) => s + snap.engagement, 0) / engagements.length
+    : 0
+  const prevEngagements = prevSnaps.filter(s => s.engagement > 0)
+  const prevEngRate = prevEngagements.length > 0
+    ? prevEngagements.reduce((s, snap) => s + snap.engagement, 0) / prevEngagements.length
+    : 0
+  const engChange = Math.round((engagementRate - prevEngRate) * 10) / 10
+
+  const hasRealMetrics = snapshots.length > 0
+
+  // Build top content from published posts this week
+  const topContentPosts = await prisma.contentPost.findMany({
+    where: { userId, status: 'published', publishedAt: { gte: weekStart } },
+    orderBy: { viralScore: 'desc' },
+    take: 3,
+  })
+
   return {
     userName: user.name ?? 'Creador',
     userEmail: user.email,
     weekLabel,
     summary: {
-      followersGained: 1240,
-      followersChange: 18.3,
-      reach: 48200,
-      reachChange: 12.1,
-      engagementRate: 4.7,
-      engChange: 0.3,
-      income: weeklyIncome > 0 ? weeklyIncome : 1850,
-      incomeChange: incomeChange !== 0 ? incomeChange : 22.0,
+      followersGained: hasRealMetrics ? followersGained : 0,
+      followersChange: hasRealMetrics ? followersChange : 0,
+      reach: hasRealMetrics ? weekReach : 0,
+      reachChange: hasRealMetrics ? reachChange : 0,
+      engagementRate: hasRealMetrics ? Math.round(engagementRate * 100) / 100 : 0,
+      engChange: hasRealMetrics ? engChange : 0,
+      income: weeklyIncome,
+      incomeChange,
     },
-    topContent: [
-      { title: 'Cómo gané $5K en mi primer mes como creador', views: 24300, likes: 1820, platform: 'TikTok' },
-      { title: '5 herramientas de IA que uso cada día', views: 18700, likes: 1340, platform: 'Instagram' },
-      { title: 'Mi rutina mañanera que cambió mi productividad', views: 9400, likes: 720, platform: 'Instagram' },
-    ],
+    topContent: topContentPosts.length > 0
+      ? topContentPosts.map(p => ({
+          title:    p.title,
+          views:    0,
+          likes:    0,
+          platform: p.platform.charAt(0).toUpperCase() + p.platform.slice(1),
+        }))
+      : [],
     goalsProgress: goalsProgress.length > 0 ? goalsProgress : [
       { title: '10K seguidores en TikTok', progress: 73, current: 7300, target: 10000 },
       { title: 'Ingresos $2K/mes', progress: 92, current: 1850, target: 2000 },
