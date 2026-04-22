@@ -131,6 +131,22 @@ describe('PATCH /api/content/[id]', () => {
     }), params)
     expect(res.status).toBe(200)
   })
+
+  it('strips userId and id from update payload (privilege escalation prevention)', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue(POST_RECORD as any)
+    vi.mocked(prisma.contentPost.update).mockResolvedValue(POST_RECORD as any)
+
+    await PATCH(new NextRequest('http://localhost/api/content/post_1', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'published', userId: 'attacker_id', id: 'fake_id' }),
+    }), params)
+
+    const updateCall = vi.mocked(prisma.contentPost.update).mock.calls[0][0]
+    expect(updateCall.data).not.toHaveProperty('userId')
+    expect(updateCall.data).not.toHaveProperty('id')
+    expect(updateCall.data).toMatchObject({ status: 'published' })
+  })
 })
 
 describe('DELETE /api/content/[id]', () => {

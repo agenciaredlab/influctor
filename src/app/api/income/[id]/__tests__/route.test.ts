@@ -36,6 +36,13 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+function putReq(body: object) {
+  return new NextRequest('http://localhost/api/income/income_1', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 describe('PUT /api/income/[id]', () => {
   it('returns 401 when not authenticated', async () => {
     vi.mocked(getApiSession).mockResolvedValue(null)
@@ -49,11 +56,29 @@ describe('PUT /api/income/[id]', () => {
   it('returns 404 when income belongs to another user', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
     vi.mocked(prisma.income.findFirst).mockResolvedValue(null)
-    const res = await PUT(new NextRequest('http://localhost/api/income/income_1', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(putBody),
-    }), params)
+    const res = await PUT(putReq(putBody), params)
     expect(res.status).toBe(404)
+  })
+
+  it('returns 400 when amount is missing', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.income.findFirst).mockResolvedValue(INCOME as any)
+    const res = await PUT(putReq({ source: 'brand_deal', date: '2025-03-01' }), params)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when source is missing', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.income.findFirst).mockResolvedValue(INCOME as any)
+    const res = await PUT(putReq({ amount: 600, date: '2025-03-01' }), params)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when date is missing', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.income.findFirst).mockResolvedValue(INCOME as any)
+    const res = await PUT(putReq({ amount: 600, source: 'brand_deal' }), params)
+    expect(res.status).toBe(400)
   })
 
   it('updates income and returns 200', async () => {
@@ -61,10 +86,7 @@ describe('PUT /api/income/[id]', () => {
     vi.mocked(prisma.income.findFirst).mockResolvedValue(INCOME as any)
     vi.mocked(prisma.income.update).mockResolvedValue({ ...INCOME, amount: 600 } as any)
 
-    const res = await PUT(new NextRequest('http://localhost/api/income/income_1', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(putBody),
-    }), params)
+    const res = await PUT(putReq(putBody), params)
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.amount).toBe(600)
@@ -75,10 +97,7 @@ describe('PUT /api/income/[id]', () => {
     vi.mocked(prisma.income.findFirst).mockResolvedValue(INCOME as any)
     vi.mocked(prisma.income.update).mockResolvedValue(INCOME as any)
 
-    await PUT(new NextRequest('http://localhost/api/income/income_1', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...putBody, amount: '299.99' }),
-    }), params)
+    await PUT(putReq({ ...putBody, amount: '299.99' }), params)
 
     expect(prisma.income.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ amount: 299.99 }),
@@ -90,10 +109,7 @@ describe('PUT /api/income/[id]', () => {
     vi.mocked(prisma.income.findFirst).mockResolvedValue(INCOME as any)
     vi.mocked(prisma.income.update).mockResolvedValue(INCOME as any)
 
-    await PUT(new NextRequest('http://localhost/api/income/income_1', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(putBody),
-    }), params)
+    await PUT(putReq(putBody), params)
 
     expect(prisma.income.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ date: expect.any(Date) }),

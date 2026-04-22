@@ -133,6 +133,22 @@ describe('PATCH /api/campaigns/[id]', () => {
     }), params)
     expect(res.status).toBe(200)
   })
+
+  it('strips userId and id from update payload (privilege escalation prevention)', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.campaign.findFirst).mockResolvedValue(CAMPAIGN as any)
+    vi.mocked(prisma.campaign.update).mockResolvedValue(CAMPAIGN as any)
+
+    await PATCH(new NextRequest('http://localhost/api/campaigns/camp_1', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active', userId: 'attacker_id', id: 'fake_id' }),
+    }), params)
+
+    const updateCall = vi.mocked(prisma.campaign.update).mock.calls[0][0]
+    expect(updateCall.data).not.toHaveProperty('userId')
+    expect(updateCall.data).not.toHaveProperty('id')
+    expect(updateCall.data).toMatchObject({ status: 'active' })
+  })
 })
 
 describe('DELETE /api/campaigns/[id]', () => {
