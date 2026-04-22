@@ -12,6 +12,7 @@ export default async function ContractsPage() {
         where:   { userId: user.id },
         orderBy: { createdAt: 'desc' },
         select:  { id: true, title: true, type: true, createdAt: true },
+        take:    100,
       })
     : []
 

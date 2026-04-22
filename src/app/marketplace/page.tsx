@@ -17,11 +17,13 @@ export default async function MarketplacePage() {
       prisma.marketplaceListing.findMany({
         orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
         include: { _count: { select: { applications: true } } },
+        take: 200,
       }),
       user ? prisma.marketplaceApplication.findMany({
         where: { userId: user.id },
         include: { listing: true },
         orderBy: { createdAt: 'desc' },
+        take: 100,
       }) : Promise.resolve([]),
       prisma.marketplaceListing.aggregate({
         where: { status: 'open' },

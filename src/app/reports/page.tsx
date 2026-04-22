@@ -22,6 +22,7 @@ export default async function ReportsPage() {
         prisma.goal.findMany({
           where: { userId: user.id, status: 'active' },
           orderBy: { priority: 'asc' },
+          take: 100,
         }),
         prisma.income.findMany({
           where: { userId: user.id },

@@ -50,7 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const existing = await ownedCampaign(params.id, sessionUser.id)
   if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  const data = await req.json()
+  const rawData = await req.json()
+  const { userId: _uid, id: _id, ...data } = rawData
   const campaign = await prisma.campaign.update({ where: { id: params.id }, data })
   return NextResponse.json(campaign)
 }

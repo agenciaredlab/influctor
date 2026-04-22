@@ -37,7 +37,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const existing = await ownedPost(params.id, sessionUser.id)
   if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  const data = await req.json()
+  const rawData = await req.json()
+  const { userId: _uid, id: _id, ...data } = rawData
   const post = await prisma.contentPost.update({ where: { id: params.id }, data })
   return NextResponse.json(post)
 }

@@ -13,6 +13,7 @@ export default async function CompetitorsPage() {
       competitors = await prisma.competitor.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
+        take: 100,
       })
     }
   } catch {}

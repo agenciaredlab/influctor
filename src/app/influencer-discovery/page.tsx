@@ -13,6 +13,7 @@ export default async function InfluencerDiscoveryPage() {
 
     initialProfiles = await prisma.influencerProfile.findMany({
       orderBy: [{ verified: 'desc' }, { followers: 'desc' }],
+      take: 200,
     })
   } catch (e) {
     console.error(e)

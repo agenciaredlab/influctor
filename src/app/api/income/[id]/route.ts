@@ -15,6 +15,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const { amount, source, platform, description, date } = await req.json()
 
+  if (!amount || !source || !date) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
   const income = await prisma.income.update({
     where: { id: params.id },
     data: {

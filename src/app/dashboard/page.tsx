@@ -19,8 +19,8 @@ async function getDashboardData(userId: string, user: { name: string; email: str
     recentIncomes,
     connectedAccounts,
   ] = await Promise.all([
-    prisma.goal.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
-    prisma.campaign.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+    prisma.goal.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 100 }),
+    prisma.campaign.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 100 }),
     prisma.income.aggregate({ where: { userId, date: { gte: monthStart } }, _sum: { amount: true } }),
     prisma.income.aggregate({ where: { userId, date: { gte: lastMonthStart, lt: monthStart } }, _sum: { amount: true } }),
     prisma.socialMetric.findMany({ where: { userId, date: { gte: subDays(now, 10) } }, orderBy: { date: 'desc' } }),

@@ -53,7 +53,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const existing = await ownedDeal(params.id, sessionUser.id)
   if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  const data = await req.json()
+  const rawData = await req.json()
+  const { userId: _uid, id: _id, ...data } = rawData
   const deal = await prisma.brandDeal.update({ where: { id: params.id }, data })
 
   // Non-blocking stage change notification (for quick Kanban drag-and-drop patches)
