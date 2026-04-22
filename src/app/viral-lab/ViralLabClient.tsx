@@ -226,7 +226,6 @@ export default function ViralLabClient() {
             topic: `Hook: "${hook}". Plataforma: ${platform}. Formato: ${format}. Emoción: ${emotion}. Razón de compartir: ${shareReason}. Score actual: ${result?.total}/100`,
             platform,
           },
-          userId: 'demo',
         }),
       })
       if (res.ok) {
