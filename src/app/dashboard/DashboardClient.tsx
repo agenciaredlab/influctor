@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, Users, DollarSign, Megaphone, Target,
-  ArrowRight, ArrowUpRight, Instagram, Youtube, Star
+  ArrowRight, ArrowUpRight, Instagram, Youtube, Star, RefreshCw, Link2
 } from 'lucide-react'
 import { format, subDays, startOfMonth, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -20,6 +20,18 @@ import {
   getStatusColor, getStatusLabel, getPlatformEmoji,
   getCategoryLabel, calculateProgress
 } from '@/lib/utils'
+
+interface ConnectedAccount {
+  id: string
+  platform: string
+  username: string
+  displayName: string | null
+  profilePicture: string | null
+  followersCount: number
+  engagement: number
+  newFollowers: number
+  lastSyncAt: string | null
+}
 
 interface DashboardClientProps {
   data: {
@@ -41,6 +53,7 @@ interface DashboardClientProps {
     recentIncomes: any[]
     incomeChart: any[]
     growthChart: any[]
+    connectedAccounts: ConnectedAccount[]
   }
 }
 
@@ -101,7 +114,7 @@ function CustomTooltip({ active, payload, label, prefix = '', suffix = '' }: any
 }
 
 export default function DashboardClient({ data }: DashboardClientProps) {
-  const { stats, goals, campaigns, latestByPlatform, recentIncomes, incomeChart, growthChart } = data
+  const { stats, goals, campaigns, latestByPlatform, recentIncomes, incomeChart, growthChart, connectedAccounts = [] } = data
 
   // Process growth chart data (monthly aggregated)
   const growthData = useMemo(() => {
@@ -186,6 +199,67 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           color="text-pink-400 bg-pink-900"
         />
       </div>
+
+      {/* Connected Accounts Bar */}
+      {connectedAccounts.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {connectedAccounts.map((account) => {
+            const lastSync = account.lastSyncAt
+              ? format(parseISO(account.lastSyncAt), "d MMM HH:mm", { locale: es })
+              : null
+            return (
+              <div
+                key={account.id}
+                className="flex items-center gap-3 p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e35] hover:border-[#2e2e4d] transition-colors"
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                  style={{ background: `${PLATFORM_COLORS[account.platform] ?? '#7c3aed'}20` }}
+                >
+                  {account.profilePicture ? (
+                    <img src={account.profilePicture} alt={account.username} className="w-9 h-9 rounded-lg object-cover" />
+                  ) : (
+                    getPlatformEmoji(account.platform)
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <span className="text-xs font-semibold text-white truncate">
+                      @{account.username}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                    <span className="text-gray-300 font-medium">{formatNumber(account.followersCount)}</span>
+                    <span>·</span>
+                    <span style={{ color: PLATFORM_COLORS[account.platform] ?? '#a78bfa' }}>
+                      {account.engagement.toFixed(1)}% eng
+                    </span>
+                    {account.newFollowers > 0 && (
+                      <>
+                        <span>·</span>
+                        <span className="text-emerald-400">+{formatNumber(account.newFollowers)}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 mt-1 text-[10px] text-gray-600">
+                    <RefreshCw size={9} />
+                    <span>{lastSync ?? 'Sin sincronizar'}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {connectedAccounts.length < 4 && (
+            <Link
+              href="/settings"
+              className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-[#2e2e4d] text-gray-600 hover:border-violet-500/50 hover:text-violet-400 transition-colors text-xs"
+            >
+              <Link2 size={14} />
+              Conectar cuenta
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
