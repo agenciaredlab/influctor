@@ -10,7 +10,7 @@ import {
 } from 'recharts'
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, Edit2, Trash2,
-  ArrowUpRight, ArrowDownRight, Calendar, Filter, Users, Link2Off
+  ArrowUpRight, ArrowDownRight, Calendar, Filter, Users, Link2Off, Download
 } from 'lucide-react'
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -555,9 +555,17 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-white">Registro de Ingresos</h3>
-          <Button onClick={openCreate} icon={<Plus size={14} />} size="sm">
-            Registrar ingreso
-          </Button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/export?type=income"
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-violet-400 px-2.5 py-1.5 rounded-lg border border-[#1e1e35] hover:border-violet-500/40 transition-colors"
+            >
+              <Download size={12} /> CSV
+            </a>
+            <Button onClick={openCreate} icon={<Plus size={14} />} size="sm">
+              Registrar ingreso
+            </Button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
