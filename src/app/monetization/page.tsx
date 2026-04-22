@@ -1,26 +1,40 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import MonetizationClient from './MonetizationClient'
 import { prisma } from '@/lib/prisma'
-import { startOfMonth, subMonths } from 'date-fns'
+import { startOfMonth } from 'date-fns'
 import { getSessionUser } from '@/lib/session'
 
 
 async function getData() {
   const user = await getSessionUser()
 
-  const [incomes, latestMetrics] = await Promise.all([
+  const [incomes, latestMetrics, connectedAccounts] = await Promise.all([
     prisma.income.findMany({ where: { userId: user.id }, orderBy: { date: 'desc' }, take: 500 }),
     prisma.socialMetric.findMany({
       where: { userId: user.id },
       orderBy: { date: 'desc' },
       take: 10,
     }),
+    prisma.socialAccount.findMany({
+      where: { userId: user.id, isActive: true },
+      include: {
+        snapshots: { orderBy: { date: 'desc' }, take: 1 },
+      },
+    }),
   ])
 
-  // Latest per platform
+  // Latest per platform — snapshot data wins over manual SocialMetric
   const byPlatform: Record<string, any> = {}
   for (const m of latestMetrics) {
-    if (!byPlatform[m.platform]) byPlatform[m.platform] = m
+    if (!byPlatform[m.platform]) byPlatform[m.platform] = { followers: m.followers, engagement: m.engagement }
+  }
+  for (const account of connectedAccounts) {
+    const latest = account.snapshots[0]
+    if (latest) {
+      byPlatform[account.platform] = { followers: latest.followers, engagement: latest.engagement }
+    } else if (!byPlatform[account.platform]) {
+      byPlatform[account.platform] = { followers: account.followersCount, engagement: 0 }
+    }
   }
 
   const totalFollowers = Object.values(byPlatform).reduce((s: number, m: any) => s + m.followers, 0)

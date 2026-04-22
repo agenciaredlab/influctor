@@ -10,7 +10,7 @@ import {
 } from 'recharts'
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, Edit2, Trash2,
-  ArrowUpRight, ArrowDownRight, Calendar, Filter
+  ArrowUpRight, ArrowDownRight, Calendar, Filter, Users, Link2Off
 } from 'lucide-react'
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -30,6 +30,22 @@ const incomeSchema = z.object({
 })
 
 type IncomeFormData = z.infer<typeof incomeSchema>
+
+const metricSchema = z.object({
+  platform:   z.string().min(1, 'Requerido'),
+  date:       z.string().min(1, 'Requerido'),
+  followers:  z.coerce.number().int().min(0),
+  following:  z.coerce.number().int().min(0).optional(),
+  posts:      z.coerce.number().int().min(0).optional(),
+  engagement: z.coerce.number().min(0).max(100).optional(),
+  reach:      z.coerce.number().int().min(0).optional(),
+  impressions:z.coerce.number().int().min(0).optional(),
+  likes:      z.coerce.number().int().min(0).optional(),
+  comments:   z.coerce.number().int().min(0).optional(),
+  shares:     z.coerce.number().int().min(0).optional(),
+})
+
+type MetricFormData = z.infer<typeof metricSchema>
 
 const SOURCE_COLORS: Record<string, string> = {
   brand_deal: '#7c3aed',
@@ -69,23 +85,92 @@ interface AnalyticsClientProps {
     user: any
     incomes: any[]
     metrics: any[]
+    igAccount?: any
   }
 }
 
 export default function AnalyticsClient({ data }: AnalyticsClientProps) {
-  const { incomes: initialIncomes, metrics } = data
+  const { incomes: initialIncomes, metrics: initialMetrics, igAccount } = data
   const [incomes, setIncomes] = useState(initialIncomes)
+  const [manualMetrics, setManualMetrics] = useState<any[]>([])
   const [showModal, setShowModal] = useState(false)
+  const [showMetricModal, setShowMetricModal] = useState(false)
   const [editIncome, setEditIncome] = useState<any>(null)
+  const [editMetric, setEditMetric] = useState<any>(null)
   const [deleteIncome, setDeleteIncome] = useState<any>(null)
+  const [deleteMetric, setDeleteMetric] = useState<any>(null)
   const [activePlatform, setActivePlatform] = useState<string>('all')
-  const [activeTab, setActiveTab] = useState<'income' | 'growth' | 'engagement'>('income')
+  const [activeTab, setActiveTab] = useState<'income' | 'growth' | 'engagement' | 'metrics'>('income')
   const [loading, setLoading] = useState(false)
+  const [metricsLoaded, setMetricsLoaded] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<IncomeFormData>({
     resolver: zodResolver(incomeSchema),
     defaultValues: { source: 'brand_deal', date: format(new Date(), 'yyyy-MM-dd') },
   })
+
+  const {
+    register: registerMetric,
+    handleSubmit: handleSubmitMetric,
+    reset: resetMetric,
+    formState: { errors: metricErrors },
+  } = useForm<MetricFormData>({
+    resolver: zodResolver(metricSchema),
+    defaultValues: { platform: 'instagram', date: format(new Date(), 'yyyy-MM-dd'), followers: 0, engagement: 0 },
+  })
+
+  const loadManualMetrics = async () => {
+    if (metricsLoaded) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/metrics')
+      if (res.ok) {
+        setManualMetrics(await res.json())
+        setMetricsLoaded(true)
+      }
+    } finally { setLoading(false) }
+  }
+
+  const openMetricCreate = () => {
+    setEditMetric(null)
+    resetMetric({ platform: 'instagram', date: format(new Date(), 'yyyy-MM-dd'), followers: 0, engagement: 0 })
+    setShowMetricModal(true)
+  }
+
+  const openMetricEdit = (m: any) => {
+    setEditMetric(m)
+    resetMetric({
+      platform: m.platform, date: format(new Date(m.date), 'yyyy-MM-dd'),
+      followers: m.followers, following: m.following, posts: m.posts,
+      engagement: m.engagement, reach: m.reach, impressions: m.impressions,
+      likes: m.likes, comments: m.comments, shares: m.shares,
+    })
+    setShowMetricModal(true)
+  }
+
+  const onSubmitMetric = async (formData: MetricFormData) => {
+    setLoading(true)
+    try {
+      const method = editMetric ? 'PUT' : 'POST'
+      const url    = editMetric ? `/api/metrics/${editMetric.id}` : '/api/metrics'
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) })
+      if (res.ok) {
+        const saved = await res.json()
+        if (editMetric) setManualMetrics(prev => prev.map(m => m.id === editMetric.id ? saved : m))
+        else setManualMetrics(prev => [saved, ...prev])
+        setShowMetricModal(false)
+      }
+    } finally { setLoading(false) }
+  }
+
+  const handleDeleteMetric = async () => {
+    if (!deleteMetric) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/metrics/${deleteMetric.id}`, { method: 'DELETE' })
+      if (res.ok) { setManualMetrics(prev => prev.filter(m => m.id !== deleteMetric.id)); setDeleteMetric(null) }
+    } finally { setLoading(false) }
+  }
 
   // --- Income analytics ---
   const monthlyIncome = useMemo(() => {
@@ -125,6 +210,9 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
     return d >= startOfMonth(last) && d <= endOfMonth(last)
   }).reduce((s, i) => s + i.amount, 0)
   const incomeChange = lastMonthIncome > 0 ? ((thisMonthIncome - lastMonthIncome) / lastMonthIncome) * 100 : 0
+
+  // Use server-prefetched merged metrics (snapshots + manual) for charts
+  const metrics = initialMetrics
 
   // --- Growth chart ---
   const growthData = useMemo(() => {
@@ -264,13 +352,17 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
       {/* Charts tabs */}
       <div className="flex items-center gap-2 border-b border-[#1e1e35] pb-0">
         {[
-          { key: 'income', label: 'Ingresos' },
-          { key: 'growth', label: 'Crecimiento' },
+          { key: 'income',     label: 'Ingresos' },
+          { key: 'growth',     label: 'Crecimiento' },
           { key: 'engagement', label: 'Engagement' },
+          { key: 'metrics',    label: 'Métricas manuales' },
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => {
+              setActiveTab(tab.key as any)
+              if (tab.key === 'metrics') loadManualMetrics()
+            }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px ${
               activeTab === tab.key
                 ? 'text-violet-400 border-violet-500'
@@ -387,6 +479,78 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
         </Card>
       )}
 
+      {activeTab === 'metrics' && (
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Users size={15} className="text-violet-400" />
+                Métricas Manuales
+              </h3>
+              {igAccount && (
+                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                  <Link2Off size={10} /> Cuentas conectadas usan datos reales — aquí registra plataformas sin conexión OAuth.
+                </p>
+              )}
+            </div>
+            <Button onClick={openMetricCreate} icon={<Plus size={14} />} size="sm">
+              Registrar
+            </Button>
+          </div>
+
+          {loading && !metricsLoaded && (
+            <div className="text-center py-8 text-gray-500 text-sm">Cargando métricas...</div>
+          )}
+
+          {metricsLoaded && manualMetrics.length === 0 && (
+            <div className="text-center py-10">
+              <Users size={32} className="text-gray-700 mx-auto mb-3" />
+              <p className="text-sm text-gray-500 mb-1">Sin métricas registradas</p>
+              <p className="text-xs text-gray-600">Registra tus seguidores y engagement manualmente para ver el crecimiento en los gráficos.</p>
+            </div>
+          )}
+
+          {manualMetrics.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-[#1e1e35]">
+                    <th className="pb-3 text-left font-medium">Fecha</th>
+                    <th className="pb-3 text-left font-medium">Plataforma</th>
+                    <th className="pb-3 text-right font-medium">Seguidores</th>
+                    <th className="pb-3 text-right font-medium">Engagement</th>
+                    <th className="pb-3 text-right font-medium">Alcance</th>
+                    <th className="pb-3 text-right font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1a1a2e]">
+                  {manualMetrics.map((m: any) => (
+                    <tr key={m.id} className="hover:bg-white/2 group">
+                      <td className="py-3 text-gray-500 text-xs">{format(new Date(m.date), 'd MMM yy', { locale: es })}</td>
+                      <td className="py-3 text-xs capitalize">
+                        <span className="text-base mr-1">{getPlatformEmoji(m.platform)}</span>
+                        <span className="text-gray-400">{m.platform}</span>
+                      </td>
+                      <td className="py-3 text-right text-gray-300 font-medium text-xs">{formatNumber(m.followers)}</td>
+                      <td className="py-3 text-right text-xs" style={{ color: PLATFORM_COLORS[m.platform] ?? '#a78bfa' }}>
+                        {m.engagement.toFixed(2)}%
+                      </td>
+                      <td className="py-3 text-right text-gray-500 text-xs">{m.reach ? formatNumber(m.reach) : '-'}</td>
+                      <td className="py-3 text-right">
+                        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openMetricEdit(m)} className="p-1 text-gray-500 hover:text-violet-400 rounded"><Edit2 size={13} /></button>
+                          <button onClick={() => setDeleteMetric(m)} className="p-1 text-gray-500 hover:text-red-400 rounded"><Trash2 size={13} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Income Table */}
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -486,12 +650,58 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
         </form>
       </Modal>
 
-      {/* Delete modal */}
+      {/* Delete income modal */}
       <Modal open={!!deleteIncome} onClose={() => setDeleteIncome(null)} title="Eliminar Ingreso" size="sm">
         <p className="text-sm text-gray-400 mb-4">¿Eliminar el ingreso de <strong className="text-white">{deleteIncome && formatCurrency(deleteIncome.amount)}</strong>?</p>
         <div className="flex gap-3">
           <Button variant="secondary" className="flex-1" onClick={() => setDeleteIncome(null)}>Cancelar</Button>
           <Button variant="danger" className="flex-1" loading={loading} onClick={handleDelete}>Eliminar</Button>
+        </div>
+      </Modal>
+
+      {/* Metric Create/Edit Modal */}
+      <Modal open={showMetricModal} onClose={() => setShowMetricModal(false)} title={editMetric ? 'Editar Métrica' : 'Registrar Métricas'} size="md">
+        <form onSubmit={handleSubmitMetric(onSubmitMetric)} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Select label="Plataforma" options={[
+              { value: 'instagram', label: 'Instagram' },
+              { value: 'tiktok',    label: 'TikTok' },
+              { value: 'youtube',   label: 'YouTube' },
+              { value: 'twitter',   label: 'Twitter/X' },
+              { value: 'linkedin',  label: 'LinkedIn' },
+            ]} {...registerMetric('platform')} />
+            <Input label="Fecha" type="date" error={metricErrors.date?.message} {...registerMetric('date')} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Seguidores" type="number" min="0" error={metricErrors.followers?.message} {...registerMetric('followers')} />
+            <Input label="Engagement (%)" type="number" min="0" max="100" step="0.01" placeholder="3.5" {...registerMetric('engagement')} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="Siguiendo" type="number" min="0" {...registerMetric('following')} />
+            <Input label="Posts" type="number" min="0" {...registerMetric('posts')} />
+            <Input label="Alcance" type="number" min="0" {...registerMetric('reach')} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="Impresiones" type="number" min="0" {...registerMetric('impressions')} />
+            <Input label="Likes" type="number" min="0" {...registerMetric('likes')} />
+            <Input label="Comentarios" type="number" min="0" {...registerMetric('comments')} />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowMetricModal(false)}>Cancelar</Button>
+            <Button type="submit" className="flex-1" loading={loading}>{editMetric ? 'Guardar' : 'Registrar'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete metric modal */}
+      <Modal open={!!deleteMetric} onClose={() => setDeleteMetric(null)} title="Eliminar Métrica" size="sm">
+        <p className="text-sm text-gray-400 mb-4">
+          ¿Eliminar la métrica de <strong className="text-white capitalize">{deleteMetric?.platform}</strong>{' '}
+          del <strong className="text-white">{deleteMetric && format(new Date(deleteMetric.date), 'd MMM yy', { locale: es })}</strong>?
+        </p>
+        <div className="flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={() => setDeleteMetric(null)}>Cancelar</Button>
+          <Button variant="danger" className="flex-1" loading={loading} onClick={handleDeleteMetric}>Eliminar</Button>
         </div>
       </Modal>
     </div>
