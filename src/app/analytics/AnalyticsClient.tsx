@@ -210,8 +210,6 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
     }
   }
 
-  const platformColors = ['#e1306c', '#69c9d0', '#ff0000', '#1da1f2']
-
   return (
     <div className="space-y-6">
       {/* Income KPIs */}
@@ -350,10 +348,10 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={growthData.data}>
               <defs>
-                {growthData.platforms.map((p, i) => (
+                {growthData.platforms.map((p) => (
                   <linearGradient key={p} id={`grad-${p}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={platformColors[i % platformColors.length]} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={platformColors[i % platformColors.length]} stopOpacity={0} />
+                    <stop offset="5%" stopColor={PLATFORM_COLORS[p] ?? '#7c3aed'} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={PLATFORM_COLORS[p] ?? '#7c3aed'} stopOpacity={0} />
                   </linearGradient>
                 ))}
               </defs>
@@ -361,9 +359,9 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
               <XAxis dataKey="week" tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={formatNumber} />
               <Tooltip content={<CustomTooltip />} />
-              {growthData.platforms.map((p, i) => (
+              {growthData.platforms.map((p) => (
                 <Area key={p} type="monotone" dataKey={p} name={p.charAt(0).toUpperCase() + p.slice(1)}
-                  stroke={platformColors[i % platformColors.length]}
+                  stroke={PLATFORM_COLORS[p] ?? '#7c3aed'}
                   fill={`url(#grad-${p})`} strokeWidth={2} dot={false} />
               ))}
             </AreaChart>
@@ -380,9 +378,9 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
               <XAxis dataKey="week" tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
               <Tooltip content={<CustomTooltip />} />
-              {growthData.platforms.map((p, i) => (
+              {growthData.platforms.map((p) => (
                 <Line key={p} type="monotone" dataKey={p} name={p.charAt(0).toUpperCase() + p.slice(1)}
-                  stroke={platformColors[i % platformColors.length]} strokeWidth={2} dot={false} />
+                  stroke={PLATFORM_COLORS[p] ?? '#7c3aed'} strokeWidth={2} dot={false} />
               ))}
             </LineChart>
           </ResponsiveContainer>
