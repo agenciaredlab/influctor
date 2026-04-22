@@ -184,7 +184,8 @@ export function buildWeeklyReportHtml(d: WeeklyReportData): string {
             <tr>
               <td>
                 <div style="font-size:12px;color:#8b5cf6;font-weight:600;margin-bottom:4px">⚡ Uso de IA esta semana</div>
-                <div style="font-size:11px;color:#6b7280">${d.aiUsage} generaciones usadas${d.aiLimit > 0 ? ` de ${d.aiLimit}` : ''}</div>
+                <div style="font-size:11px;color:#6b7280;margin-bottom:6px">${d.aiUsage} generaciones usadas${d.aiLimit > 0 ? ` de ${d.aiLimit}` : ''}</div>
+                ${d.aiLimit > 0 ? `<div style="background:#1a1a2e;border-radius:4px;height:4px;overflow:hidden"><div style="background:#7c3aed;height:4px;width:${aiPct}%;border-radius:4px"></div></div>` : ''}
               </td>
               <td style="text-align:right">
                 <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/reports"

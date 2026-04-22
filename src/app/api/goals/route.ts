@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       description:  description  || null,
       category:     category     || 'followers',
       platform:     platform     || null,
-      targetValue:  parseFloat(targetValue),
+      targetValue:  parseFloat(targetValue  || 0),
       currentValue: parseFloat(currentValue || 0),
       unit:         unit         || '',
       deadline:     deadline ? new Date(deadline) : null,

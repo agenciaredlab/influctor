@@ -26,7 +26,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       description: description || null,
       category,
       platform:     platform     || null,
-      targetValue:  parseFloat(targetValue),
+      targetValue:  parseFloat(targetValue  || 0),
       currentValue: parseFloat(currentValue || 0),
       unit:         unit         || '',
       deadline:     deadline ? new Date(deadline) : null,
@@ -43,7 +43,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       userName:    sessionUser.name ?? 'Creador',
       userEmail:   sessionUser.email,
       goalTitle:   title,
-      targetValue: parseFloat(targetValue),
+      targetValue: parseFloat(targetValue || 0),
       unit:        unit || '',
       category,
     })?.catch(() => {})

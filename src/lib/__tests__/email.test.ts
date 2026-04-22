@@ -11,6 +11,8 @@ import {
   buildGoalAchievedHtml,
   buildAiLimitWarningHtml,
   buildPublishFailedHtml,
+  buildWeeklyReportHtml,
+  type WeeklyReportData,
 } from '../email'
 
 // ─── Deal stage notification ─────────────────────────────────────────────────
@@ -208,5 +210,110 @@ describe('buildPublishFailedHtml', () => {
   it('escapes no HTML in error message (plain text only)', () => {
     const html = buildPublishFailedHtml({ ...base, lastError: 'API rate limit: 100 req/s' })
     expect(html).toContain('API rate limit: 100 req/s')
+  })
+})
+
+// ─── Weekly report HTML ───────────────────────────────────────────────────────
+
+const WEEKLY_BASE: WeeklyReportData = {
+  userName:  'Carlos',
+  userEmail: 'carlos@test.com',
+  weekLabel: 'Semana del 14 abr al 21 abr',
+  summary: {
+    followersGained: 1240,
+    followersChange: 12.5,
+    reach: 48000,
+    reachChange: 8.3,
+    engagementRate: 3.7,
+    engChange: 0.4,
+    income: 1850,
+    incomeChange: 15.2,
+  },
+  topContent: [
+    { title: 'Reel: 5 tips productividad', views: 15200, likes: 870, platform: 'Instagram' },
+    { title: 'TikTok viral del lunes',      views: 9400,  likes: 540, platform: 'TikTok' },
+  ],
+  goalsProgress: [
+    { title: '10K seguidores', progress: 73, current: 7300, target: 10000 },
+    { title: 'Ingresos $2K/mes', progress: 92, current: 1850, target: 2000 },
+  ],
+  recommendations: ['Publica los jueves para mayor alcance.'],
+  goalsNextWeek:   ['Publicar 7 videos en TikTok'],
+  aiUsage: 18,
+  aiLimit: 100,
+}
+
+describe('buildWeeklyReportHtml', () => {
+  it('includes the user name', () => {
+    expect(buildWeeklyReportHtml(WEEKLY_BASE)).toContain('Carlos')
+  })
+
+  it('includes the week label', () => {
+    expect(buildWeeklyReportHtml(WEEKLY_BASE)).toContain('Semana del 14 abr al 21 abr')
+  })
+
+  it('renders followers gained', () => {
+    expect(buildWeeklyReportHtml(WEEKLY_BASE)).toContain('1,240')
+  })
+
+  it('renders income value', () => {
+    expect(buildWeeklyReportHtml(WEEKLY_BASE)).toContain('1,850')
+  })
+
+  it('renders top content titles', () => {
+    const html = buildWeeklyReportHtml(WEEKLY_BASE)
+    expect(html).toContain('Reel: 5 tips productividad')
+    expect(html).toContain('TikTok viral del lunes')
+  })
+
+  it('renders goal titles and progress', () => {
+    const html = buildWeeklyReportHtml(WEEKLY_BASE)
+    expect(html).toContain('10K seguidores')
+    expect(html).toContain('73%')
+  })
+
+  it('renders recommendations', () => {
+    expect(buildWeeklyReportHtml(WEEKLY_BASE)).toContain('Publica los jueves')
+  })
+
+  it('renders next week goals', () => {
+    expect(buildWeeklyReportHtml(WEEKLY_BASE)).toContain('Publicar 7 videos en TikTok')
+  })
+
+  it('shows AI usage count with limit', () => {
+    const html = buildWeeklyReportHtml(WEEKLY_BASE)
+    expect(html).toContain('18 generaciones usadas de 100')
+  })
+
+  it('hides limit label when aiLimit is 0 (unlimited plan)', () => {
+    const html = buildWeeklyReportHtml({ ...WEEKLY_BASE, aiLimit: 0 })
+    expect(html).toContain('18 generaciones usadas')
+    expect(html).not.toContain('de 0')
+  })
+
+  it('uses green color for positive changes', () => {
+    const html = buildWeeklyReportHtml(WEEKLY_BASE)
+    // followersChange is positive — should use green
+    expect(html).toContain('#34d399')
+  })
+
+  it('uses red color for negative changes', () => {
+    const html = buildWeeklyReportHtml({
+      ...WEEKLY_BASE,
+      summary: { ...WEEKLY_BASE.summary, followersChange: -5, followersGained: 100 },
+    })
+    expect(html).toContain('#f87171')
+  })
+
+  it('produces valid HTML structure', () => {
+    const html = buildWeeklyReportHtml(WEEKLY_BASE)
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('</html>')
+    expect(html).toContain('<body')
+  })
+
+  it('handles empty topContent gracefully', () => {
+    const html = buildWeeklyReportHtml({ ...WEEKLY_BASE, topContent: [] })
+    expect(html).toContain('<!DOCTYPE html>')
   })
 })
