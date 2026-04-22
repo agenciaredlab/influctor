@@ -15,7 +15,7 @@ vi.mock('@/lib/session', () => ({
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
-  rateLimit:    vi.fn().mockResolvedValue({ ok: true, retryAfter: 0 }),
+  rateLimit:    vi.fn().mockResolvedValue({ ok: true, remaining: 9, retryAfter: 0 }),
   rateLimitKey: vi.fn().mockReturnValue('key'),
 }))
 
@@ -59,7 +59,7 @@ beforeEach(() => {
   vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
   vi.mocked(prisma.user.findUnique).mockResolvedValue(USER as any)
   vi.mocked(prisma.$transaction).mockResolvedValue([])
-  vi.mocked(rateLimit).mockResolvedValue({ ok: true, retryAfter: 0 })
+  vi.mocked(rateLimit).mockResolvedValue({ ok: true, remaining: 9, retryAfter: 0 })
 })
 
 describe('POST /api/repurpose', () => {
