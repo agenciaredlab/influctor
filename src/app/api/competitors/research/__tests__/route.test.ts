@@ -2,12 +2,25 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST } from '../route'
 
+const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }))
+
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: function MockAnthropic() {
+    return { messages: { create: mockCreate } }
+  },
+}))
+
 vi.mock('@/lib/session', () => ({ getApiSession: vi.fn() }))
 
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit:    vi.fn().mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 }),
   rateLimitKey: vi.fn().mockReturnValue('key'),
 }))
+
+import { getApiSession } from '@/lib/session'
+import { rateLimit } from '@/lib/rate-limit'
+
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
 
 const AI_RESULT = {
   found: true,
@@ -19,24 +32,6 @@ const AI_RESULT = {
   ],
 }
 
-vi.mock('@anthropic-ai/sdk', () => {
-  const AnthropicMock = function () {
-    return {
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [{ type: 'text', text: JSON.stringify(AI_RESULT) }],
-        }),
-      },
-    }
-  }
-  return { default: AnthropicMock }
-})
-
-import { getApiSession } from '@/lib/session'
-import { rateLimit } from '@/lib/rate-limit'
-
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
-
 function makeReq(body: unknown) {
   return new NextRequest('http://localhost/api/competitors/research', {
     method: 'POST',
@@ -46,8 +41,13 @@ function makeReq(body: unknown) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   vi.mocked(rateLimit).mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 })
+  vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+  mockCreate.mockResolvedValue({
+    content: [{ type: 'text', text: JSON.stringify(AI_RESULT) }],
+  })
+  process.env.ANTHROPIC_API_KEY = 'sk-test'
 })
 
 describe('POST /api/competitors/research', () => {
@@ -58,36 +58,23 @@ describe('POST /api/competitors/research', () => {
   })
 
   it('returns 429 when rate limited', async () => {
-    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
     vi.mocked(rateLimit).mockResolvedValue({ ok: false, remaining: 0, retryAfter: 55 })
-
     const res = await POST(makeReq({ query: 'Nike' }))
     expect(res.status).toBe(429)
   })
 
   it('returns 503 when ANTHROPIC_API_KEY is missing', async () => {
-    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    const saved = process.env.ANTHROPIC_API_KEY
     delete process.env.ANTHROPIC_API_KEY
-
     const res = await POST(makeReq({ query: 'Nike' }))
     expect(res.status).toBe(503)
-
-    process.env.ANTHROPIC_API_KEY = saved
   })
 
   it('returns 400 when query is empty', async () => {
-    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    process.env.ANTHROPIC_API_KEY = 'test-key'
-
     const res = await POST(makeReq({ query: '   ' }))
     expect(res.status).toBe(400)
   })
 
   it('returns research results for valid query', async () => {
-    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    process.env.ANTHROPIC_API_KEY = 'test-key'
-
     const res = await POST(makeReq({ query: 'Nike' }))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -98,19 +85,28 @@ describe('POST /api/competitors/research', () => {
   })
 
   it('returns found=false when brand is unknown', async () => {
-    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    process.env.ANTHROPIC_API_KEY = 'test-key'
-
-    const Anthropic = await import('@anthropic-ai/sdk')
-    const instance = new (Anthropic.default as any)()
-    vi.mocked(instance.messages.create).mockResolvedValueOnce({
+    mockCreate.mockResolvedValueOnce({
       content: [{ type: 'text', text: JSON.stringify({ found: false }) }],
     })
+    const res  = await POST(makeReq({ query: 'UnknownBrandXYZ123' }))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.found).toBe(false)
+  })
 
-    // We need to remock the module for this test
-    // Instead, check that the route handles found=false gracefully
+  it('returns 500 when Anthropic API throws', async () => {
+    mockCreate.mockRejectedValue(new Error('Rate limit exceeded'))
+    const res  = await POST(makeReq({ query: 'Nike' }))
+    const body = await res.json()
+    expect(res.status).toBe(500)
+    expect(body.error).toContain('investigar')
+  })
+
+  it('returns 500 when AI response is not valid JSON', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'not json at all' }],
+    })
     const res = await POST(makeReq({ query: 'Nike' }))
-    // Either returns 200 with found=true (from mock) or handles gracefully
-    expect([200]).toContain(res.status)
+    expect(res.status).toBe(500)
   })
 })

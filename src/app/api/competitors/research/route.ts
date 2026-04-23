@@ -52,12 +52,14 @@ export async function POST(req: NextRequest) {
   // Step 1 — Ask Claude to find the brand's social profiles
   const client = new Anthropic({ apiKey })
 
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    messages: [{
-      role: 'user',
-      content: `Research this company/brand and find all their social media profiles: "${query}"
+  let message: Awaited<ReturnType<typeof client.messages.create>>
+  try {
+    message = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `Research this company/brand and find all their social media profiles: "${query}"
 
 Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
 {
@@ -83,8 +85,12 @@ Rules:
 - followersNote: brief note about the estimate date/confidence, or null
 - If the brand is not found or unknown, return { "found": false }
 - For Facebook, use the page slug (e.g. "nike" for facebook.com/nike)`,
-    }],
-  })
+      }],
+    })
+  } catch (err) {
+    console.error('[competitors/research POST] Anthropic error:', err)
+    return NextResponse.json({ error: 'Error al investigar el competidor. Intenta de nuevo.' }, { status: 500 })
+  }
 
   const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
 
