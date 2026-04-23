@@ -113,11 +113,17 @@ export async function POST(req: NextRequest) {
   const client = new Anthropic({ apiKey })
   const prompt = buildRepurposePrompt(sourceType ?? 'video_script', sourceContent, selectedFormats)
 
-  const message = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: 2500,
-    messages:   [{ role: 'user', content: prompt }],
-  })
+  let message: Awaited<ReturnType<typeof client.messages.create>>
+  try {
+    message = await client.messages.create({
+      model:      'claude-sonnet-4-6',
+      max_tokens: 2500,
+      messages:   [{ role: 'user', content: prompt }],
+    })
+  } catch (err: any) {
+    console.error('[repurpose POST] Anthropic error:', err)
+    return NextResponse.json({ error: 'Error al generar contenido. Intenta de nuevo.' }, { status: 500 })
+  }
 
   const raw     = message.content[0].type === 'text' ? message.content[0].text : ''
   const results = parseFormats(raw, selectedFormats)

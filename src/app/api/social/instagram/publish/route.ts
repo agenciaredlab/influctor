@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
       permalink: `https://www.instagram.com/p/${publishedId}/`,
     })
   } catch (err: any) {
-    console.error('Publish error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[instagram publish POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

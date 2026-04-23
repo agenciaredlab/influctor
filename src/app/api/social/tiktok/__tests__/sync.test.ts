@@ -136,6 +136,6 @@ describe('POST /api/social/tiktok/sync', () => {
     const res  = await POST(req('POST'))
     const body = await res.json()
     expect(res.status).toBe(500)
-    expect(body.error).toBe('API rate limit')
+    expect(body.error).toBe('Internal server error')
   })
 })

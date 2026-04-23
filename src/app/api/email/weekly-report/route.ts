@@ -15,7 +15,7 @@ export async function buildReportData(userId: string): Promise<WeeklyReportData>
   if (!user) throw new Error('Usuario no encontrado')
 
   const [goals, income, aiUsage, snapshots] = await Promise.all([
-    prisma.goal.findMany({ where: { userId } }),
+    prisma.goal.findMany({ where: { userId }, take: 100 }),
     prisma.income.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 30 }),
     prisma.aiUsage.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 }),
     prisma.socialSnapshot.findMany({

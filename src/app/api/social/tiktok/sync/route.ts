@@ -31,8 +31,8 @@ export async function POST(_req: NextRequest) {
     const result = await syncTikTokAccount(account, sessionUser.id)
     return NextResponse.json({ success: true, synced: result })
   } catch (err: any) {
-    console.error('TikTok sync error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[tiktok sync POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -69,6 +69,7 @@ export async function GET(_req: NextRequest) {
       snapshots: account.snapshots,
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[tiktok sync GET]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

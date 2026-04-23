@@ -30,8 +30,8 @@ export async function POST(_req: NextRequest) {
     const result = await syncInstagramAccount(account, sessionUser.id)
     return NextResponse.json({ success: true, synced: result })
   } catch (err: any) {
-    console.error('Instagram sync error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[instagram sync POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -76,6 +76,7 @@ export async function GET(_req: NextRequest) {
       recentMedia,
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[instagram sync GET]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
