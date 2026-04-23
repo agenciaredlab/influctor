@@ -20,6 +20,7 @@ function date(d: Date | null | undefined) {
 }
 
 export async function GET(req: NextRequest) {
+  try {
   const sessionUser = await getApiSession()
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
@@ -87,6 +88,10 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ error: 'El parámetro type debe ser: income, deals o campaigns' }, { status: 400 })
+  } catch (err) {
+    console.error('[export GET]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
 
 function csvResponse(body: string, filename: string) {
