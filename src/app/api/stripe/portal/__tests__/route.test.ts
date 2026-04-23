@@ -2,6 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST } from '../route'
 
+const { mockCreatePortalSession } = vi.hoisted(() => ({
+  mockCreatePortalSession: vi.fn(),
+}))
+
+vi.mock('stripe', () => ({
+  default: function MockStripe() {
+    return {
+      billingPortal: { sessions: { create: mockCreatePortalSession } },
+    }
+  },
+}))
+
 vi.mock('@/lib/session', () => ({ getApiSession: vi.fn() }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -10,21 +22,8 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-vi.mock('stripe', () => {
-  const StripeMock = function () {
-    return {
-      billingPortal: {
-        sessions: {
-          create: vi.fn().mockResolvedValue({ url: 'https://billing.stripe.com/session/bps_test' }),
-        },
-      },
-    }
-  }
-  return { default: StripeMock }
-})
-
 import { getApiSession } from '@/lib/session'
-import { prisma } from '@/lib/prisma'
+import { prisma }        from '@/lib/prisma'
 
 const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator' }
 
@@ -33,8 +32,9 @@ function makeReq() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   process.env.STRIPE_SECRET_KEY = 'sk_test_key'
+  mockCreatePortalSession.mockResolvedValue({ url: 'https://billing.stripe.com/session/bps_test' })
 })
 
 describe('POST /api/stripe/portal', () => {
@@ -54,7 +54,6 @@ describe('POST /api/stripe/portal', () => {
   it('returns 404 when user has no stripeCustomerId', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user_1', stripeCustomerId: null } as any)
-
     const res = await POST(makeReq())
     expect(res.status).toBe(404)
   })
@@ -63,9 +62,19 @@ describe('POST /api/stripe/portal', () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user_1', stripeCustomerId: 'cus_123' } as any)
 
-    const res = await POST(makeReq())
-    expect(res.status).toBe(200)
+    const res  = await POST(makeReq())
     const body = await res.json()
+    expect(res.status).toBe(200)
     expect(body.url).toContain('stripe.com')
+  })
+
+  it('passes the correct customer ID to the portal session', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user_1', stripeCustomerId: 'cus_abc' } as any)
+
+    await POST(makeReq())
+    expect(mockCreatePortalSession).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: 'cus_abc' })
+    )
   })
 })

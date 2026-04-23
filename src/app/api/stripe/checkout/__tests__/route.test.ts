@@ -2,6 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST } from '../route'
 
+const { mockCreateCustomer, mockCreateSession } = vi.hoisted(() => ({
+  mockCreateCustomer: vi.fn(),
+  mockCreateSession:  vi.fn(),
+}))
+
+vi.mock('stripe', () => ({
+  default: function MockStripe() {
+    return {
+      customers: { create: mockCreateCustomer },
+      checkout:  { sessions: { create: mockCreateSession } },
+    }
+  },
+}))
+
 vi.mock('@/lib/session', () => ({ getApiSession: vi.fn() }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -18,24 +32,8 @@ vi.mock('@/lib/plans', () => ({
   },
 }))
 
-vi.mock('stripe', () => {
-  const StripeMock = function () {
-    return {
-      customers: {
-        create: vi.fn().mockResolvedValue({ id: 'cus_test123' }),
-      },
-      checkout: {
-        sessions: {
-          create: vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_test' }),
-        },
-      },
-    }
-  }
-  return { default: StripeMock }
-})
-
 import { getApiSession } from '@/lib/session'
-import { prisma } from '@/lib/prisma'
+import { prisma }        from '@/lib/prisma'
 
 const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
 const USER    = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', stripeCustomerId: null }
@@ -49,8 +47,10 @@ function makeReq(body: unknown) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   process.env.STRIPE_SECRET_KEY = 'sk_test_key'
+  mockCreateCustomer.mockResolvedValue({ id: 'cus_test123' })
+  mockCreateSession.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_test' })
 })
 
 describe('POST /api/stripe/checkout', () => {
@@ -75,7 +75,6 @@ describe('POST /api/stripe/checkout', () => {
   it('returns 503 when STRIPE_SECRET_KEY is not configured', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
     delete process.env.STRIPE_SECRET_KEY
-
     const res = await POST(makeReq({ planId: 'creator' }))
     expect(res.status).toBe(503)
   })
@@ -85,20 +84,32 @@ describe('POST /api/stripe/checkout', () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(USER as any)
     vi.mocked(prisma.user.update).mockResolvedValue({ ...USER, stripeCustomerId: 'cus_test123' } as any)
 
-    const res = await POST(makeReq({ planId: 'creator' }))
-    expect(res.status).toBe(200)
+    const res  = await POST(makeReq({ planId: 'creator' }))
     const body = await res.json()
+    expect(res.status).toBe(200)
     expect(body.url).toContain('stripe.com')
+  })
+
+  it('creates a new Stripe customer when none exists', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(USER as any)
+    vi.mocked(prisma.user.update).mockResolvedValue({ ...USER, stripeCustomerId: 'cus_test123' } as any)
+
+    await POST(makeReq({ planId: 'creator' }))
+    expect(mockCreateCustomer).toHaveBeenCalledOnce()
+    expect(mockCreateCustomer).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'test@example.com', metadata: { userId: 'user_1' } })
+    )
   })
 
   it('reuses existing stripeCustomerId without creating new customer', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ ...USER, stripeCustomerId: 'cus_existing' } as any)
 
-    const Stripe = await import('stripe')
-    const stripeInstance = new (Stripe.default as any)()
-
     await POST(makeReq({ planId: 'creator' }))
-    expect(stripeInstance.customers.create).not.toHaveBeenCalled()
+    expect(mockCreateCustomer).not.toHaveBeenCalled()
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: 'cus_existing' })
+    )
   })
 })
