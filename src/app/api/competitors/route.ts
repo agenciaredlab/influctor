@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ competitor })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[competitors POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

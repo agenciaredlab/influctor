@@ -168,7 +168,7 @@ export async function POST(_req: NextRequest) {
 
     return NextResponse.json({ ok: true, id: (result.data as any)?.id })
   } catch (err: any) {
-    console.error('Email report error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[email weekly-report POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

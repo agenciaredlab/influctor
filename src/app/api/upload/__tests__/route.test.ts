@@ -131,7 +131,7 @@ describe('POST /api/upload', () => {
     const res = await POST(makeRequest({ folder: 'avatars', filename: 'photo.jpg', mime: 'image/jpeg', size: 1024 }))
     expect(res.status).toBe(500)
     const body = await res.json()
-    expect(body.error).toContain('MinIO unreachable')
+    expect(body.error).toBe('Internal server error')
   })
 
   it('allows media files up to 50 MB', async () => {

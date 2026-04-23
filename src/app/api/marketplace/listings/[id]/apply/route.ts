@@ -59,6 +59,7 @@ export async function POST(
     if (err.code === 'P2002') {
       return NextResponse.json({ error: 'Ya aplicaste a esta oportunidad' }, { status: 409 })
     }
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[marketplace apply POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

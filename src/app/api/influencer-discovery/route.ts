@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     if (err.code === 'P2002') {
       return NextResponse.json({ error: 'Este handle ya existe en esa plataforma' }, { status: 409 })
     }
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[influencer-discovery POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

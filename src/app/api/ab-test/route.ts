@@ -158,6 +158,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido sin markdown ni texto adicional:
 
     return NextResponse.json(parsed)
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[ab-test POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

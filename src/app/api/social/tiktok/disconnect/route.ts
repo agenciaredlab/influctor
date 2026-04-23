@@ -14,6 +14,7 @@ export async function POST() {
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[tiktok disconnect]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

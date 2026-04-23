@@ -36,7 +36,7 @@ export async function POST(_req: NextRequest) {
 
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
-    console.error('Portal error:', err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[stripe portal POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

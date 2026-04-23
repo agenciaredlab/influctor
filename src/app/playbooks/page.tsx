@@ -17,7 +17,7 @@ async function getData() {
       where: { userId: user.id, isActive: true },
       include: { snapshots: { orderBy: { date: 'desc' }, take: 1 } },
     }),
-    prisma.playbookProgress.findMany({ where: { userId: user.id } }),
+    prisma.playbookProgress.findMany({ where: { userId: user.id }, take: 500 }),
   ])
 
   const byPlatform: Record<string, number> = {}

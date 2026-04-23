@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     where,
     orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
     include: { _count: { select: { applications: true } } },
+    take: 200,
   })
 
   // Get current user's applications to mark applied listings
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ listing })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[marketplace listings POST]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
