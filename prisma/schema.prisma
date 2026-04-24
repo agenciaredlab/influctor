@@ -428,17 +428,21 @@ model MarketplaceListing {
 }
 
 model MarketplaceApplication {
-  id           String   @id @default(cuid())
-  message      String
-  proposedRate Float?
-  portfolio    String?  // URLs comma-separated
-  status       String   @default("pending") // pending | viewed | shortlisted | accepted | rejected
-  listingId    String
-  listing      MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String    @id @default(cuid())
+  message        String
+  proposedRate   Float?
+  agreedRate     Float?    // set by brand when accepting
+  portfolio      String?   // URLs comma-separated
+  status         String    @default("pending") // pending | viewed | shortlisted | accepted | rejected
+  paymentStatus  String    @default("unpaid")  // unpaid | processing | paid | refunded
+  paymentIntentId String?  // Stripe Checkout Session ID
+  paidAt         DateTime?
+  listingId      String
+  listing        MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([listingId, userId])
 }

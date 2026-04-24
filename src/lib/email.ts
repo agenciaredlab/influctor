@@ -703,3 +703,72 @@ export async function sendTrialEndingEmail(data: TrialEndingData) {
     html:    buildTrialEndingHtml(data, base),
   })
 }
+
+// ─── Marketplace deal selected ────────────────────────────────────────────────
+
+export interface DealSelectedData {
+  creatorName:  string
+  creatorEmail: string
+  brandName:    string
+  listingTitle: string
+  agreedRate:   number
+  currency:     string
+  listingId:    string
+}
+
+export function buildDealSelectedHtml(d: DealSelectedData, baseUrl: string): string {
+  const formatted = new Intl.NumberFormat('es', { style: 'currency', currency: d.currency, maximumFractionDigits: 0 }).format(d.agreedRate)
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>¡Fuiste seleccionado! · Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%">
+
+        <tr><td style="background:linear-gradient(135deg,#064e3b,#0f0f1e);border-radius:16px 16px 0 0;padding:32px;border:1px solid #1a1a2e;border-bottom:none;text-align:center">
+          <div style="font-size:40px;margin-bottom:12px">🎉</div>
+          <div style="font-size:24px;font-weight:700;color:#ffffff;margin-bottom:6px">¡Fuiste seleccionado!</div>
+          <div style="font-size:13px;color:#34d399">Hola ${d.creatorName} — una marca quiere trabajar contigo</div>
+        </td></tr>
+
+        <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <div style="background:#064e3b22;border:1px solid #059669;border-radius:12px;padding:20px 24px;text-align:center;margin-bottom:20px">
+            <div style="font-size:12px;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${d.brandName}</div>
+            <div style="font-size:16px;font-weight:600;color:#ffffff;margin-bottom:12px">${d.listingTitle}</div>
+            <div style="font-size:36px;font-weight:800;color:#34d399">${formatted}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:4px">Tarifa acordada · Pago confirmado</div>
+          </div>
+          <div style="font-size:13px;color:#d1d5db;line-height:1.7">
+            La marca ha completado el pago a través de Influctor. Nuestro equipo procesará
+            el pago a tu cuenta en los próximos días hábiles. Puedes ver los detalles de
+            este deal en tu dashboard.
+          </div>
+        </td></tr>
+
+        <tr><td style="background:#09090f;padding:20px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px;text-align:center">
+          <a href="${baseUrl}/marketplace"
+             style="display:inline-block;background:#059669;color:#ffffff;font-size:13px;font-weight:700;padding:12px 28px;border-radius:9px;text-decoration:none">
+            Ver mis deals →
+          </a>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">© ${new Date().getFullYear()} Influctor</td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendDealSelectedEmail(data: DealSelectedData) {
+  const client = await makeResend()
+  const base   = await appUrl()
+  return client.emails.send({
+    from:    FROM_EMAIL,
+    to:      data.creatorEmail,
+    subject: `🎉 ¡${data.brandName} te seleccionó! Pago confirmado en Influctor`,
+    html:    buildDealSelectedHtml(data, base),
+  })
+}

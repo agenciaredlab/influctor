@@ -39,14 +39,30 @@ interface Application {
   id: string
   message: string
   proposedRate?: number | null
+  agreedRate?: number | null
   status: string
+  paymentStatus: string
+  paidAt?: string | null
   createdAt: string
   listing: Listing
+}
+
+interface IncomingApplication {
+  id: string
+  message: string
+  proposedRate?: number | null
+  agreedRate?: number | null
+  status: string
+  paymentStatus: string
+  paidAt?: string | null
+  createdAt: string
+  user: { id: string; name: string; email: string; avatar?: string | null; niche?: string | null }
 }
 
 interface Props {
   initialListings: Listing[]
   myApplications: Application[]
+  myListings: Listing[]
   plan: string
   stats: { open: number; brands: number; totalBudget: number }
 }
@@ -76,6 +92,15 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente', viewed: 'Visto', shortlisted: 'Preseleccionado',
   accepted: 'Aceptado', rejected: 'Rechazado',
+}
+const PAYMENT_COLORS: Record<string, string> = {
+  unpaid:     'text-gray-400 bg-gray-500/10 border-gray-500/20',
+  processing: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+  paid:       'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  refunded:   'text-red-400 bg-red-500/10 border-red-500/20',
+}
+const PAYMENT_LABELS: Record<string, string> = {
+  unpaid: 'Sin pago', processing: 'En proceso', paid: 'Pagado', refunded: 'Reembolsado',
 }
 
 function formatBudget(l: Listing) {
@@ -427,10 +452,10 @@ function ApplyModal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function MarketplaceClient({ initialListings, myApplications, plan, stats }: Props) {
+export default function MarketplaceClient({ initialListings, myApplications, myListings, plan, stats }: Props) {
   const [listings, setListings]     = useState<Listing[]>(initialListings)
   const [applications, setApps]     = useState<Application[]>(myApplications)
-  const [tab, setTab]               = useState<'listings' | 'myapps'>('listings')
+  const [tab, setTab]               = useState<'listings' | 'myapps' | 'mylistings'>('listings')
   const [search, setSearch]         = useState('')
   const [niche, setNiche]           = useState('Todos')
   const [platform, setPlatform]     = useState('Todas')
@@ -439,6 +464,11 @@ export default function MarketplaceClient({ initialListings, myApplications, pla
   const [selected, setSelected]     = useState<Listing | null>(null)
   const [applying, setApplying]     = useState<Listing | null>(null)
   const [toast, setToast]           = useState<{ ok: boolean; msg: string } | null>(null)
+  const [brandApps, setBrandApps]   = useState<Record<string, IncomingApplication[]>>({})
+  const [loadingApps, setLoadingApps] = useState<string | null>(null)
+  const [acceptModal, setAcceptModal] = useState<IncomingApplication | null>(null)
+  const [acceptRate, setAcceptRate] = useState('')
+  const [accepting, setAccepting]   = useState(false)
 
   const canApply = plan !== 'free'
 
@@ -477,6 +507,7 @@ export default function MarketplaceClient({ initialListings, myApplications, pla
         proposedRate: data.proposedRate ?? null,
         portfolio: data.portfolio ?? null,
         status: 'pending',
+        paymentStatus: 'unpaid',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         listing: applying,
@@ -542,11 +573,12 @@ export default function MarketplaceClient({ initialListings, myApplications, pla
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-[#13131f] border border-[#1a1a2e] rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-[#13131f] border border-[#1a1a2e] rounded-xl p-1 w-fit flex-wrap">
         {([
-          { id: 'listings', label: 'Oportunidades', count: stats.open },
-          { id: 'myapps', label: 'Mis aplicaciones', count: applications.length },
-        ] as const).map(t => (
+          { id: 'listings',   label: 'Oportunidades',   count: stats.open },
+          { id: 'myapps',     label: 'Mis aplicaciones', count: applications.length },
+          ...(myListings.length > 0 ? [{ id: 'mylistings', label: 'Mis listings', count: myListings.length }] : []),
+        ] as { id: 'listings'|'myapps'|'mylistings'; label: string; count: number }[]).map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -696,15 +728,170 @@ export default function MarketplaceClient({ initialListings, myApplications, pla
                     <p className="text-xs text-gray-400 bg-[#0d0d1a] rounded-lg p-2.5 italic line-clamp-2">
                       "{app.message}"
                     </p>
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-600">
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-600 flex-wrap">
                       <span>Aplicado {new Date(app.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
                       {app.proposedRate && <span>· Tarifa propuesta: ${app.proposedRate}</span>}
+                      {app.agreedRate   && <span>· Tarifa acordada: ${app.agreedRate}</span>}
+                      {app.paymentStatus !== 'unpaid' && (
+                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border', PAYMENT_COLORS[app.paymentStatus])}>
+                          {PAYMENT_LABELS[app.paymentStatus]}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* ── TAB: MIS LISTINGS (brand view) ───────────────────────── */}
+      {tab === 'mylistings' && (
+        <div className="space-y-4">
+          {myListings.map(listing => (
+            <div key={listing.id} className="bg-[#13131f] border border-[#1a1a2e] rounded-xl overflow-hidden">
+              {/* Listing header */}
+              <div className="flex items-center justify-between gap-3 p-4 border-b border-[#1a1a2e]">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600/30 to-blue-600/20 border border-[#1a1a2e] flex items-center justify-center text-white font-bold text-sm">
+                    {brandInitial(listing.brandName)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{listing.title}</p>
+                    <p className="text-xs text-gray-500">{listing.brandName} · {formatBudget(listing)}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (brandApps[listing.id]) return
+                    setLoadingApps(listing.id)
+                    try {
+                      const res = await fetch(`/api/marketplace/listings/${listing.id}/applications`)
+                      const data = await res.json()
+                      setBrandApps(prev => ({ ...prev, [listing.id]: data.applications ?? [] }))
+                    } finally {
+                      setLoadingApps(null)
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a2e] hover:bg-[#22223a] border border-[#1e1e35] rounded-lg text-xs text-gray-300 transition-colors"
+                >
+                  <Eye size={12} />
+                  {loadingApps === listing.id ? 'Cargando...' : `Ver ${listing.applicantsCount} aplicaciones`}
+                </button>
+              </div>
+
+              {/* Applications list */}
+              {brandApps[listing.id] && (
+                <div className="divide-y divide-[#1a1a2e]">
+                  {brandApps[listing.id].length === 0 ? (
+                    <p className="text-xs text-gray-600 p-4 text-center">Aún no hay aplicaciones</p>
+                  ) : brandApps[listing.id].map(app => (
+                    <div key={app.id} className="p-4 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-violet-600/20 border border-[#1e1e35] flex items-center justify-center text-xs text-violet-300 font-semibold flex-shrink-0">
+                        {app.user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <p className="text-sm font-medium text-white">{app.user.name}</p>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border', STATUS_COLORS[app.status])}>
+                              {STATUS_LABELS[app.status]}
+                            </span>
+                            {app.paymentStatus !== 'unpaid' && (
+                              <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border', PAYMENT_COLORS[app.paymentStatus])}>
+                                {PAYMENT_LABELS[app.paymentStatus]}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {app.user.niche && <p className="text-[11px] text-gray-500 mb-1">{app.user.niche}</p>}
+                        <p className="text-xs text-gray-400 italic line-clamp-2 mb-2">"{app.message}"</p>
+                        <div className="flex items-center justify-between">
+                          <div className="text-[11px] text-gray-600">
+                            {app.proposedRate ? `Tarifa propuesta: $${app.proposedRate}` : 'Sin tarifa propuesta'}
+                            {app.paidAt && ` · Pagado el ${new Date(app.paidAt).toLocaleDateString('es-ES')}`}
+                          </div>
+                          {app.paymentStatus !== 'paid' && app.status !== 'rejected' && (
+                            <button
+                              onClick={() => {
+                                setAcceptModal(app)
+                                setAcceptRate(String(app.proposedRate ?? listing.budget ?? ''))
+                              }}
+                              className="text-xs px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-lg transition-colors"
+                            >
+                              Aceptar & Pagar
+                            </button>
+                          )}
+                          {app.paymentStatus === 'paid' && (
+                            <span className="text-xs text-emerald-400 font-medium">✓ Deal cerrado</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── ACCEPT & PAY MODAL ────────────────────────────────────── */}
+      {acceptModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f0f1a] border border-[#1e1e35] rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-base font-semibold text-white mb-1">Aceptar y pagar</h3>
+            <p className="text-xs text-gray-500 mb-5">
+              Estás a punto de contratar a <strong className="text-gray-300">{acceptModal.user.name}</strong>.
+              Se procesará el pago más un 15% de comisión de plataforma.
+            </p>
+            <label className="text-xs font-medium text-gray-400 block mb-1">Tarifa acordada (USD)</label>
+            <input
+              type="number"
+              min="1"
+              value={acceptRate}
+              onChange={e => setAcceptRate(e.target.value)}
+              className="w-full bg-[#1a1a2e] border border-[#2a2a45] rounded-xl px-3 py-2.5 text-white text-sm mb-2 focus:outline-none focus:border-violet-500/50"
+              placeholder="500"
+            />
+            {acceptRate && Number(acceptRate) > 0 && (
+              <p className="text-[11px] text-gray-500 mb-5">
+                Total a pagar: <strong className="text-white">${(Number(acceptRate) * 1.15).toLocaleString('en', { maximumFractionDigits: 2 })} USD</strong> (incluye 15% comisión)
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAcceptModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-[#1a1a2e] text-gray-400 hover:text-gray-200 text-sm transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={accepting || !acceptRate || Number(acceptRate) <= 0}
+                onClick={async () => {
+                  setAccepting(true)
+                  try {
+                    const res = await fetch(`/api/marketplace/applications/${acceptModal.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'accept', agreedRate: Number(acceptRate) }),
+                    })
+                    const data = await res.json()
+                    if (!res.ok) throw new Error(data.error ?? 'Error')
+                    window.location.href = data.checkoutUrl
+                  } catch (err: any) {
+                    setToast({ ok: false, msg: err.message })
+                    setAccepting(false)
+                    setAcceptModal(null)
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                {accepting ? 'Redirigiendo...' : 'Ir a pagar →'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

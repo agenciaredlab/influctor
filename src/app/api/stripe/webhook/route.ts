@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import { getStripeSecretKey, getStripeWebhookSecret, getStripePriceCreator, getStripePricePro } from '@/lib/config'
+import { sendDealSelectedEmail } from '@/lib/email'
 
 function mapStatus(status: Stripe.Subscription.Status): string {
   const map: Record<string, string> = {
@@ -81,6 +82,39 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   ])
 }
 
+async function handleMarketplacePayment(session: Stripe.Checkout.Session) {
+  const { applicationId, agreedRate, currency } = session.metadata ?? {}
+  if (!applicationId) return
+
+  const application = await prisma.marketplaceApplication.findUnique({
+    where:   { id: applicationId },
+    include: {
+      user:    { select: { name: true, email: true } },
+      listing: { select: { title: true, brandName: true } },
+    },
+  })
+  if (!application) return
+
+  await prisma.marketplaceApplication.update({
+    where: { id: applicationId },
+    data:  {
+      paymentStatus: 'paid',
+      agreedRate:    agreedRate ? Number(agreedRate) : application.agreedRate,
+      paidAt:        new Date(),
+    },
+  })
+
+  sendDealSelectedEmail({
+    creatorName:  application.user.name,
+    creatorEmail: application.user.email,
+    brandName:    application.listing.brandName,
+    listingTitle: application.listing.title,
+    agreedRate:   Number(agreedRate ?? application.agreedRate ?? 0),
+    currency:     currency ?? 'USD',
+    listingId:    application.listingId,
+  }).catch(err => console.error('[webhook] deal email failed:', err))
+}
+
 async function processEvent(event: Stripe.Event, stripe: Stripe) {
   try {
     switch (event.type) {
@@ -104,6 +138,13 @@ async function processEvent(event: Stripe.Event, stripe: Stripe) {
         const invoice = event.data.object as any
         const userId  = invoice.subscription_details?.metadata?.userId ?? invoice.metadata?.userId
         if (userId) await prisma.user.update({ where: { id: userId }, data: { planStatus: 'past_due' } })
+        break
+      }
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        if (session.metadata?.type === 'marketplace') {
+          await handleMarketplacePayment(session)
+        }
         break
       }
     }
