@@ -772,3 +772,69 @@ export async function sendDealSelectedEmail(data: DealSelectedData) {
     html:    buildDealSelectedHtml(data, base),
   })
 }
+
+// ─── Password reset email ─────────────────────────────────────────────────────
+
+export interface PasswordResetData {
+  userName:   string
+  userEmail:  string
+  resetUrl:   string
+  expiresMin: number
+}
+
+export function buildPasswordResetHtml(d: PasswordResetData): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Restablecer contraseña · Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%">
+
+        <tr><td style="background:linear-gradient(135deg,#1e1b4b,#0f0f1e);border-radius:16px 16px 0 0;padding:32px;border:1px solid #1a1a2e;border-bottom:none;text-align:center">
+          <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#6d28d9);margin:0 auto 16px;text-align:center;line-height:48px;font-size:22px">🔑</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:6px">Restablecer contraseña</div>
+          <div style="font-size:13px;color:#9ca3af">Hola ${d.userName} — recibimos tu solicitud</div>
+        </td></tr>
+
+        <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <p style="font-size:13px;color:#d1d5db;line-height:1.7;margin:0 0 20px">
+            Haz clic en el botón de abajo para crear una nueva contraseña.
+            Este enlace expira en <strong style="color:#ffffff">${d.expiresMin} minutos</strong>.
+          </p>
+          <div style="text-align:center;margin-bottom:20px">
+            <a href="${d.resetUrl}"
+               style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px">
+              Restablecer contraseña →
+            </a>
+          </div>
+          <div style="background:#1a1a2e;border-radius:8px;padding:10px 14px">
+            <p style="font-size:11px;color:#6b7280;margin:0;word-break:break-all">
+              O copia este enlace: <span style="color:#8b5cf6">${d.resetUrl}</span>
+            </p>
+          </div>
+        </td></tr>
+
+        <tr><td style="background:#09090f;padding:20px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px">
+          <p style="font-size:12px;color:#4b5563;margin:0;text-align:center">
+            Si no solicitaste este cambio, ignora este email — tu contraseña no cambiará.
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">© ${new Date().getFullYear()} Influctor</td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendPasswordResetEmail(data: PasswordResetData) {
+  const client = await makeResend()
+  return client.emails.send({
+    from:    FROM_EMAIL,
+    to:      data.userEmail,
+    subject: '🔑 Restablece tu contraseña de Influctor',
+    html:    buildPasswordResetHtml(data),
+  })
+}

@@ -25,7 +25,9 @@ model User {
   planCurrentPeriodEnd DateTime?
   aiUsageThisMonth   Int      @default(0)
   aiUsageResetAt     DateTime?
-  trialEndsAt        DateTime?
+  trialEndsAt             DateTime?
+  passwordResetToken      String?   @unique  // SHA-256 hash of the raw token
+  passwordResetExpires    DateTime?
   isAdmin            Boolean  @default(false)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
