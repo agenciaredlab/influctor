@@ -23,7 +23,8 @@ export async function GET() {
     }
 
     // Build response: mask password fields, show text fields
-    const allFields = CONFIG_FIELDS.flatMap(g => g.fields)
+    type Field = { key: string; label: string; placeholder: string; type: string }
+    const allFields = (CONFIG_FIELDS as unknown as Array<{ group: string; fields: Field[] }>).flatMap(g => g.fields)
     const result: Record<string, string> = {}
     for (const f of allFields) {
       const val = decrypted[f.key] ?? ''

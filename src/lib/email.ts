@@ -1,8 +1,19 @@
 import { Resend } from 'resend'
-
-export const resend = new Resend(process.env.RESEND_API_KEY)
+import { getResendKey, getAppUrl } from '@/lib/config'
 
 export const FROM_EMAIL = process.env.EMAIL_FROM ?? 'Influctor <onboarding@resend.dev>'
+
+// Legacy singleton (used by existing send functions that read env directly)
+export const resend = new Resend(process.env.RESEND_API_KEY)
+
+// Config-aware helpers for new send functions
+async function makeResend() {
+  const key = await getResendKey()
+  return new Resend(key ?? '')
+}
+async function appUrl() {
+  return (await getAppUrl()) ?? 'http://localhost:3000'
+}
 
 // ─── Data types ───────────────────────────────────────────────────────────────
 
@@ -489,5 +500,206 @@ export async function sendWeeklyReport(data: WeeklyReportData) {
     to: data.userEmail,
     subject: `📊 Tu reporte semanal · ${data.weekLabel}`,
     html,
+  })
+}
+
+// ─── Welcome email ────────────────────────────────────────────────────────────
+
+export interface WelcomeData {
+  userName:  string
+  userEmail: string
+  trialDays: number
+}
+
+export function buildWelcomeHtml(d: WelcomeData, baseUrl: string): string {
+  const trialEnd = new Date(Date.now() + d.trialDays * 86400_000)
+  const trialEndStr = trialEnd.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Bienvenido a Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#2e1065,#1e1b4b,#0f0f1e);border-radius:16px 16px 0 0;padding:36px 32px;border:1px solid #1a1a2e;border-bottom:none;text-align:center">
+          <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:20px">
+            <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#7c3aed,#6d28d9);text-align:center;line-height:32px;font-size:16px">⚡</div>
+            <span style="font-size:18px;font-weight:700;color:#ffffff">influctor</span>
+          </div>
+          <div style="font-size:32px;margin-bottom:12px">🎉</div>
+          <div style="font-size:24px;font-weight:700;color:#ffffff;margin-bottom:8px">¡Bienvenido, ${d.userName}!</div>
+          <div style="font-size:14px;color:#a78bfa">Tu cuenta ya está lista para crecer</div>
+        </td></tr>
+
+        <!-- Trial banner -->
+        <tr><td style="background:linear-gradient(90deg,#4c1d95,#5b21b6);padding:14px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e;text-align:center">
+          <div style="font-size:13px;font-weight:600;color:#ffffff">
+            🚀 Tienes <strong>${d.trialDays} días gratis</strong> del plan Creator — hasta el ${trialEndStr}
+          </div>
+        </td></tr>
+
+        <!-- Features -->
+        <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <div style="font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px">Qué puedes hacer ahora</div>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            ${[
+              ['📊', 'Dashboard de métricas', 'Conecta tu Instagram y ve tus estadísticas en tiempo real'],
+              ['🤖', 'IA para contenido', '200 generaciones al mes para scripts, captions y hashtags'],
+              ['💼', 'Brand Deals CRM', 'Gestiona todas tus colaboraciones con marcas en un lugar'],
+              ['📅', 'Calendario de contenido', 'Programa y publica directamente en Instagram'],
+            ].map(([icon, title, desc]) => `
+            <tr>
+              <td style="padding:10px 0;border-bottom:1px solid #1a1a2e;vertical-align:top">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="width:36px;vertical-align:top;padding-top:2px">
+                      <div style="width:28px;height:28px;border-radius:8px;background:#1a1a2e;text-align:center;line-height:28px;font-size:14px">${icon}</div>
+                    </td>
+                    <td style="padding-left:12px">
+                      <div style="font-size:13px;font-weight:600;color:#ffffff;margin-bottom:2px">${title}</div>
+                      <div style="font-size:12px;color:#6b7280">${desc}</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>`).join('')}
+          </table>
+        </td></tr>
+
+        <!-- CTA -->
+        <tr><td style="background:#09090f;padding:28px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px;text-align:center">
+          <a href="${baseUrl}/dashboard"
+             style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px">
+            Ir al dashboard →
+          </a>
+          <div style="margin-top:16px;font-size:12px;color:#4b5563">
+            ¿Dudas? Responde este email y te ayudamos.
+          </div>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding:20px 0;text-align:center">
+          <div style="font-size:11px;color:#374151">
+            © ${new Date().getFullYear()} Influctor · Social Growth Platform
+          </div>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendWelcomeEmail(data: WelcomeData) {
+  const client = await makeResend()
+  const base   = await appUrl()
+  return client.emails.send({
+    from:    FROM_EMAIL,
+    to:      data.userEmail,
+    subject: `¡Bienvenido a Influctor, ${data.userName}! 🚀`,
+    html:    buildWelcomeHtml(data, base),
+  })
+}
+
+// ─── Trial ending email ───────────────────────────────────────────────────────
+
+export interface TrialEndingData {
+  userName:    string
+  userEmail:   string
+  daysLeft:    number
+  trialEndDate: Date
+}
+
+export function buildTrialEndingHtml(d: TrialEndingData, baseUrl: string): string {
+  const dateStr = d.trialEndDate.toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })
+  const urgentColor = d.daysLeft <= 1 ? '#ef4444' : d.daysLeft <= 3 ? '#f59e0b' : '#8b5cf6'
+  const emoji = d.daysLeft <= 1 ? '🔴' : d.daysLeft <= 3 ? '🟡' : '⏰'
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Tu trial termina pronto · Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%">
+
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#1e1b4b,#0f0f1e);border-radius:16px 16px 0 0;padding:32px 32px 24px;border:1px solid #1a1a2e;border-bottom:none;text-align:center">
+          <div style="font-size:36px;margin-bottom:12px">${emoji}</div>
+          <div style="font-size:22px;font-weight:700;color:#ffffff;margin-bottom:6px">
+            Tu trial termina en ${d.daysLeft} día${d.daysLeft !== 1 ? 's' : ''}
+          </div>
+          <div style="font-size:13px;color:#9ca3af">Hola ${d.userName} — el ${dateStr} vuelves al plan Free</div>
+        </td></tr>
+
+        <!-- Countdown -->
+        <tr><td style="background:${urgentColor}18;padding:20px 32px;border-left:1px solid ${urgentColor}30;border-right:1px solid ${urgentColor}30;text-align:center">
+          <div style="display:inline-block;background:${urgentColor}22;border:1px solid ${urgentColor}44;border-radius:12px;padding:12px 28px">
+            <div style="font-size:36px;font-weight:800;color:${urgentColor};line-height:1">${d.daysLeft}</div>
+            <div style="font-size:11px;color:${urgentColor};font-weight:600;text-transform:uppercase;letter-spacing:1px">día${d.daysLeft !== 1 ? 's' : ''} restante${d.daysLeft !== 1 ? 's' : ''}</div>
+          </div>
+        </td></tr>
+
+        <!-- What you lose -->
+        <tr><td style="background:#0d0d1a;padding:24px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <div style="font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Qué perderás al terminar el trial</div>
+          ${[
+            'Publicación directa en Instagram',
+            '195 generaciones de IA restantes del mes',
+            'Reportes semanales automáticos',
+            'Brand Deals CRM ilimitado',
+            'Contract Builder',
+          ].map(f => `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #13131f">
+            <div style="width:16px;height:16px;border-radius:50%;background:#ef444420;border:1px solid #ef4444;flex-shrink:0;text-align:center;line-height:16px;font-size:9px;color:#ef4444">✕</div>
+            <span style="font-size:13px;color:#d1d5db">${f}</span>
+          </div>`).join('')}
+        </td></tr>
+
+        <!-- Pricing -->
+        <tr><td style="background:#09090f;padding:24px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
+          <div style="background:linear-gradient(135deg,#1e1b4b,#13131f);border:1px solid #3b1d8a;border-radius:12px;padding:20px 24px;text-align:center">
+            <div style="font-size:11px;font-weight:700;color:#8b5cf6;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Plan Creator</div>
+            <div style="font-size:32px;font-weight:800;color:#ffffff;margin-bottom:4px">$19<span style="font-size:14px;font-weight:400;color:#6b7280">/mes</span></div>
+            <div style="font-size:12px;color:#9ca3af;margin-bottom:16px">Todo lo que tienes ahora, para siempre</div>
+            <a href="${baseUrl}/pricing"
+               style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#ffffff;font-size:13px;font-weight:700;padding:12px 28px;border-radius:9px;text-decoration:none">
+              Mantener acceso →
+            </a>
+          </div>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding:20px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px;background:#09090f;text-align:center">
+          <div style="font-size:12px;color:#4b5563">
+            Si no quieres continuar, no hagas nada — volverás al plan Free automáticamente.
+          </div>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">
+          © ${new Date().getFullYear()} Influctor
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendTrialEndingEmail(data: TrialEndingData) {
+  const client = await makeResend()
+  const base   = await appUrl()
+  const subject = data.daysLeft <= 1
+    ? `🔴 Tu trial de Influctor termina mañana`
+    : `⏰ Tu trial de Influctor termina en ${data.daysLeft} días`
+  return client.emails.send({
+    from:    FROM_EMAIL,
+    to:      data.userEmail,
+    subject,
+    html:    buildTrialEndingHtml(data, base),
   })
 }

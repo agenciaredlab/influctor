@@ -706,6 +706,8 @@ cat >> /tmp/crontab_clean << CRONEOF
 0 6 * * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "${CRON_URL}/api/cron/sync-instagram" >/dev/null 2>&1
 # influctor-cron: sincronizar TikTok (diario 7am UTC)
 0 7 * * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "${CRON_URL}/api/cron/sync-tiktok" >/dev/null 2>&1
+# influctor-cron: recordatorio de trial (diario 10am UTC)
+0 10 * * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "${CRON_URL}/api/cron/trial-reminder" >/dev/null 2>&1
 CRONEOF
 
 crontab /tmp/crontab_clean

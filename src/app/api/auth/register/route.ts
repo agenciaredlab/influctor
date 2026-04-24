@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,16 +21,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ya existe una cuenta con ese email' }, { status: 409 })
     }
 
-    const hashed    = await bcrypt.hash(password, 12)
-    const userCount = await prisma.user.count()
+    const TRIAL_DAYS  = 7
+    const hashed      = await bcrypt.hash(password, 12)
+    const userCount   = await prisma.user.count()
+    const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 86400_000)
+
     const user = await prisma.user.create({
       data: {
-        name:     name.trim(),
-        email:    email.toLowerCase().trim(),
-        password: hashed,
-        isAdmin:  userCount === 0, // primer usuario = super admin
+        name:        name.trim(),
+        email:       email.toLowerCase().trim(),
+        password:    hashed,
+        isAdmin:     userCount === 0,
+        plan:        'creator',
+        planStatus:  'trialing',
+        trialEndsAt,
       },
     })
+
+    // Fire-and-forget — don't fail registration if email fails
+    sendWelcomeEmail({ userName: user.name, userEmail: user.email, trialDays: TRIAL_DAYS })
+      .catch(err => console.error('[register] welcome email failed:', err))
 
     return NextResponse.json({ id: user.id, email: user.email, name: user.name }, { status: 201 })
   } catch (err: any) {
