@@ -478,3 +478,13 @@ model ViralAnalysis {
 
   @@index([userId, createdAt])
 }
+
+// ========================
+// SYSTEM CONFIG
+// ========================
+
+model SystemConfig {
+  key       String   @id
+  value     String   // AES-256-GCM encrypted, format: iv:authTag:ciphertext (hex)
+  updatedAt DateTime @updatedAt
+}

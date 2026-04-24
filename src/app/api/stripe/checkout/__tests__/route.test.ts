@@ -24,16 +24,16 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-vi.mock('@/lib/plans', () => ({
-  PLANS: {
-    creator: { name: 'Creator', priceId: 'price_creator' },
-    pro:     { name: 'Pro',     priceId: 'price_pro' },
-    free:    { name: 'Free',    priceId: null },
-  },
+vi.mock('@/lib/config', () => ({
+  getStripeSecretKey:    vi.fn(),
+  getStripePriceCreator: vi.fn(),
+  getStripePricePro:     vi.fn(),
+  getAppUrl:             vi.fn().mockResolvedValue('http://localhost:3000'),
 }))
 
-import { getApiSession } from '@/lib/session'
-import { prisma }        from '@/lib/prisma'
+import { getApiSession }                                from '@/lib/session'
+import { prisma }                                       from '@/lib/prisma'
+import { getStripeSecretKey, getStripePriceCreator, getStripePricePro } from '@/lib/config'
 
 const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
 const USER    = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', stripeCustomerId: null }
@@ -48,7 +48,9 @@ function makeReq(body: unknown) {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  process.env.STRIPE_SECRET_KEY = 'sk_test_key'
+  vi.mocked(getStripeSecretKey).mockResolvedValue('sk_test_key')
+  vi.mocked(getStripePriceCreator).mockResolvedValue('price_creator')
+  vi.mocked(getStripePricePro).mockResolvedValue('price_pro')
   mockCreateCustomer.mockResolvedValue({ id: 'cus_test123' })
   mockCreateSession.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/cs_test' })
 })
@@ -72,9 +74,16 @@ describe('POST /api/stripe/checkout', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 503 when STRIPE_SECRET_KEY is not configured', async () => {
+  it('returns 503 when Stripe key is not configured', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    delete process.env.STRIPE_SECRET_KEY
+    vi.mocked(getStripeSecretKey).mockResolvedValue('')
+    const res = await POST(makeReq({ planId: 'creator' }))
+    expect(res.status).toBe(503)
+  })
+
+  it('returns 503 when price ID is not configured', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(getStripePriceCreator).mockResolvedValue('')
     const res = await POST(makeReq({ planId: 'creator' }))
     expect(res.status).toBe(503)
   })

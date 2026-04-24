@@ -2,18 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+import { getStripeSecretKey, getAppUrl } from '@/lib/config'
 
 export async function POST(_req: NextRequest) {
   try {
-    if (!process.env.STRIPE_SECRET_KEY) {
+    const stripeKey = await getStripeSecretKey()
+    if (!stripeKey) {
       return NextResponse.json(
-        { error: 'Stripe no configurado. Agrega STRIPE_SECRET_KEY en .env.local' },
+        { error: 'Stripe no configurado. Ve a Admin → Configuración.' },
         { status: 503 }
       )
     }
@@ -23,15 +19,14 @@ export async function POST(_req: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user?.stripeCustomerId) {
-      return NextResponse.json(
-        { error: 'No tienes una suscripción activa' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'No tienes una suscripción activa' }, { status: 404 })
     }
 
+    const appUrl  = (await getAppUrl()) || 'http://localhost:3000'
+    const stripe  = new Stripe(stripeKey, { apiVersion: '2026-03-25.dahlia' })
     const session = await stripe.billingPortal.sessions.create({
-      customer: user.stripeCustomerId,
-      return_url: `${APP_URL}/pricing`,
+      customer:   user.stripeCustomerId,
+      return_url: `${appUrl}/pricing`,
     })
 
     return NextResponse.json({ url: session.url })

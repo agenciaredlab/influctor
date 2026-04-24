@@ -22,8 +22,14 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-import { getApiSession } from '@/lib/session'
-import { prisma }        from '@/lib/prisma'
+vi.mock('@/lib/config', () => ({
+  getStripeSecretKey: vi.fn(),
+  getAppUrl:          vi.fn().mockResolvedValue('http://localhost:3000'),
+}))
+
+import { getApiSession }      from '@/lib/session'
+import { prisma }             from '@/lib/prisma'
+import { getStripeSecretKey } from '@/lib/config'
 
 const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator' }
 
@@ -33,13 +39,13 @@ function makeReq() {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  process.env.STRIPE_SECRET_KEY = 'sk_test_key'
+  vi.mocked(getStripeSecretKey).mockResolvedValue('sk_test_key')
   mockCreatePortalSession.mockResolvedValue({ url: 'https://billing.stripe.com/session/bps_test' })
 })
 
 describe('POST /api/stripe/portal', () => {
-  it('returns 503 when STRIPE_SECRET_KEY is not set', async () => {
-    delete process.env.STRIPE_SECRET_KEY
+  it('returns 503 when Stripe key is not set', async () => {
+    vi.mocked(getStripeSecretKey).mockResolvedValue('')
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
     const res = await POST(makeReq())
     expect(res.status).toBe(503)

@@ -5,6 +5,7 @@ import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
 import { sendAiLimitWarning } from '@/lib/email'
+import { getAnthropicKey } from '@/lib/config'
 
 const SYSTEM_PROMPT = `Eres un experto en marketing digital, redes sociales y creación de contenido.
 Tienes más de 10 años de experiencia ayudando a creadores de contenido a crecer en Instagram, TikTok, YouTube, LinkedIn y Twitter.
@@ -141,10 +142,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
+    const apiKey = await getAnthropicKey()
     if (!apiKey) {
       return NextResponse.json({
-        error: 'ANTHROPIC_API_KEY no configurada. Agrega tu API key en .env.local para usar esta función.',
+        error: 'API de IA no configurada. Ve a Admin → Configuración para agregar tu Anthropic API key.',
       }, { status: 503 })
     }
 

@@ -4,7 +4,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Users, DollarSign, Zap, TrendingUp, CreditCard, Database } from 'lucide-react'
+import { Users, DollarSign, Zap, TrendingUp, CreditCard, Database, Settings } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Card from '@/components/ui/Card'
@@ -101,6 +101,17 @@ export default function AdminClient({ stats, dailySignups, recentSignups, topAiU
 
   return (
     <div className="space-y-6">
+      {/* Header actions */}
+      <div className="flex justify-end">
+        <a
+          href="/admin/settings"
+          className="flex items-center gap-2 px-4 py-2 bg-[#1a1a2e] border border-[#2a2a45] hover:border-purple-500/50 text-gray-300 hover:text-white text-sm rounded-lg transition-colors"
+        >
+          <Settings size={14} />
+          Configuración de servicios
+        </a>
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map(kpi => (

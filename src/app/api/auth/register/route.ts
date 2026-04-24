@@ -20,12 +20,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ya existe una cuenta con ese email' }, { status: 409 })
     }
 
-    const hashed = await bcrypt.hash(password, 12)
+    const hashed    = await bcrypt.hash(password, 12)
+    const userCount = await prisma.user.count()
     const user = await prisma.user.create({
       data: {
-        name:  name.trim(),
-        email: email.toLowerCase().trim(),
+        name:     name.trim(),
+        email:    email.toLowerCase().trim(),
         password: hashed,
+        isAdmin:  userCount === 0, // primer usuario = super admin
       },
     })
 

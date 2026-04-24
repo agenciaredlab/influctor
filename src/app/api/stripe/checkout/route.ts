@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
-import { PLANS } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-})
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+import { getStripeSecretKey, getStripePriceCreator, getStripePricePro, getAppUrl } from '@/lib/config'
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,51 +15,53 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Plan inválido' }, { status: 400 })
     }
 
-    const plan = PLANS[planId as keyof typeof PLANS]
-    if (!plan || !plan.priceId) {
+    const stripeKey = await getStripeSecretKey()
+    if (!stripeKey) {
       return NextResponse.json(
-        { error: 'STRIPE_PRICE_CREATOR o STRIPE_PRICE_PRO no configurados en .env.local' },
+        { error: 'Stripe no configurado. Configúralo en Admin → Configuración.' },
         { status: 503 }
       )
     }
 
-    if (!process.env.STRIPE_SECRET_KEY) {
+    const priceId = planId === 'creator'
+      ? await getStripePriceCreator()
+      : planId === 'pro' ? await getStripePricePro() : ''
+
+    if (!priceId) {
       return NextResponse.json(
-        { error: 'STRIPE_SECRET_KEY no configurada. Agrega tu clave en .env.local' },
+        { error: `Price ID para el plan "${planId}" no configurado. Ve a Admin → Configuración.` },
         { status: 503 }
       )
     }
+
+    const appUrl = (await getAppUrl()) || 'http://localhost:3000'
+    const stripe  = new Stripe(stripeKey, { apiVersion: '2026-03-25.dahlia' })
 
     const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
-    // Get or create Stripe customer
     let customerId = user.stripeCustomerId
 
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
-        name: user.name,
+        name:  user.name,
         metadata: { userId: user.id },
       })
       customerId = customer.id
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { stripeCustomerId: customerId },
-      })
+      await prisma.user.update({ where: { id: user.id }, data: { stripeCustomerId: customerId } })
     }
 
-    // Create checkout session
     const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
+      customer:             customerId,
+      mode:                 'subscription',
       payment_method_types: ['card'],
-      line_items: [{ price: plan.priceId!, quantity: 1 }],
-      success_url: `${APP_URL}/pricing?success=1&plan=${planId}`,
-      cancel_url: `${APP_URL}/pricing?canceled=1`,
+      line_items:           [{ price: priceId, quantity: 1 }],
+      success_url:          `${appUrl}/pricing?success=1&plan=${planId}`,
+      cancel_url:           `${appUrl}/pricing?canceled=1`,
       subscription_data: {
-        metadata: { userId: user.id, plan: planId },
-        trial_period_days: 7, // 7-day free trial
+        metadata:          { userId: user.id, plan: planId },
+        trial_period_days: 7,
       },
       allow_promotion_codes: true,
       metadata: { userId: user.id, plan: planId },

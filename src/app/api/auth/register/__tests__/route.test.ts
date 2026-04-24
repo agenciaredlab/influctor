@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => ({
     user: {
       findUnique: vi.fn(),
       create:     vi.fn(),
+      count:      vi.fn().mockResolvedValue(1), // default: not first user
     },
   },
 }))
