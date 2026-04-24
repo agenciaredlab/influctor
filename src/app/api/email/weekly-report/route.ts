@@ -164,9 +164,9 @@ export async function POST(_req: NextRequest) {
     }
 
     const data = await buildReportData(user.id)
-    const result = await sendWeeklyReport(data)
+    await sendWeeklyReport(data)
 
-    return NextResponse.json({ ok: true, id: (result.data as any)?.id })
+    return NextResponse.json({ ok: true })
   } catch (err: any) {
     console.error('[email weekly-report POST]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

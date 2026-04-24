@@ -85,6 +85,12 @@ export async function getStripePriceCreator()   { return getConfig('stripe_price
 export async function getStripePricePro()       { return getConfig('stripe_price_pro',        'STRIPE_PRICE_PRO') }
 export async function getAnthropicKey()         { return getConfig('anthropic_api_key',       'ANTHROPIC_API_KEY') }
 export async function getResendKey()            { return getConfig('resend_api_key',          'RESEND_API_KEY') }
+export async function getFromEmail()            { return getConfig('email_from',               'EMAIL_FROM') }
+export async function getSmtpHost()             { return getConfig('smtp_host',                'SMTP_HOST') }
+export async function getSmtpPort()             { return getConfig('smtp_port',                'SMTP_PORT') }
+export async function getSmtpUser()             { return getConfig('smtp_user',                'SMTP_USER') }
+export async function getSmtpPass()             { return getConfig('smtp_pass',                'SMTP_PASS') }
+export async function getSmtpSecure()           { return getConfig('smtp_secure',              'SMTP_SECURE') } // "true" | "false"
 export async function getInstagramAppId()       { return getConfig('instagram_app_id',        'INSTAGRAM_APP_ID') }
 export async function getInstagramAppSecret()   { return getConfig('instagram_app_secret',    'INSTAGRAM_APP_SECRET') }
 export async function getTikTokClientKey()      { return getConfig('tiktok_client_key',       'TIKTOK_CLIENT_KEY') }
@@ -110,9 +116,15 @@ export const CONFIG_FIELDS = [
     ],
   },
   {
-    group:  'Resend (Email)',
+    group:  'Email',
     fields: [
-      { key: 'resend_api_key', label: 'API Key', placeholder: 're_...', type: 'password' },
+      { key: 'email_from',    label: 'Remitente (From)',  placeholder: 'Influctor <no-reply@tudominio.com>', type: 'text' },
+      { key: 'resend_api_key', label: 'Resend API Key',  placeholder: 're_... (dejar vacío si usas SMTP)', type: 'password' },
+      { key: 'smtp_host',     label: 'SMTP Host',         placeholder: 'smtp.tudominio.com', type: 'text' },
+      { key: 'smtp_port',     label: 'SMTP Port',         placeholder: '587', type: 'text' },
+      { key: 'smtp_user',     label: 'SMTP Usuario',      placeholder: 'no-reply@tudominio.com', type: 'text' },
+      { key: 'smtp_pass',     label: 'SMTP Contraseña',   placeholder: '••••••••', type: 'password' },
+      { key: 'smtp_secure',   label: 'SMTP TLS (465)',    placeholder: 'true / false', type: 'text' },
     ],
   },
   {

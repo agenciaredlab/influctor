@@ -1,18 +1,51 @@
 import { Resend } from 'resend'
-import { getResendKey, getAppUrl } from '@/lib/config'
+import nodemailer from 'nodemailer'
+import { getResendKey, getAppUrl, getFromEmail, getSmtpHost, getSmtpPort, getSmtpUser, getSmtpPass, getSmtpSecure } from '@/lib/config'
 
 export const FROM_EMAIL = process.env.EMAIL_FROM ?? 'Influctor <onboarding@resend.dev>'
 
-// Legacy singleton (used by existing send functions that read env directly)
-export const resend = new Resend(process.env.RESEND_API_KEY)
-
-// Config-aware helpers for new send functions
-async function makeResend() {
-  const key = await getResendKey()
-  return new Resend(key ?? '')
-}
 async function appUrl() {
   return (await getAppUrl()) ?? 'http://localhost:3000'
+}
+
+// ── Unified send: prefers SMTP when configured, falls back to Resend ──────────
+
+interface MailPayload {
+  to:      string
+  subject: string
+  html:    string
+}
+
+async function sendMail(payload: MailPayload): Promise<void> {
+  const [smtpHost, smtpUser, smtpPass, smtpPort, smtpSecure, fromCfg, resendKey] = await Promise.all([
+    getSmtpHost(), getSmtpUser(), getSmtpPass(), getSmtpPort(), getSmtpSecure(),
+    getFromEmail(), getResendKey(),
+  ])
+
+  const from = fromCfg || process.env.EMAIL_FROM || 'Influctor <onboarding@resend.dev>'
+
+  if (smtpHost && smtpUser && smtpPass) {
+    // ── SMTP transport ────────────────────────────────────────────
+    const port   = Number(smtpPort ?? 587)
+    const secure = smtpSecure === 'true' || port === 465
+
+    const transporter = nodemailer.createTransport({
+      host:   smtpHost,
+      port,
+      secure,
+      auth:   { user: smtpUser, pass: smtpPass },
+    })
+
+    await transporter.sendMail({ from, to: payload.to, subject: payload.subject, html: payload.html })
+    return
+  }
+
+  // ── Resend fallback ───────────────────────────────────────────
+  const key = resendKey || process.env.RESEND_API_KEY
+  if (!key) throw new Error('No email transport configured. Set SMTP or Resend credentials in Admin → Configuración de servicios.')
+
+  const client = new Resend(key)
+  await client.emails.send({ from, to: payload.to, subject: payload.subject, html: payload.html })
 }
 
 // ─── Data types ───────────────────────────────────────────────────────────────
@@ -305,14 +338,8 @@ export function buildDealStageHtml(d: DealStageData): string {
 }
 
 export async function sendDealStageNotification(data: DealStageData) {
-  if (!process.env.RESEND_API_KEY) return
   const label = STAGE_LABEL[data.newStage] ?? data.newStage
-  return resend.emails.send({
-    from: FROM_EMAIL,
-    to:   data.userEmail,
-    subject: `📬 Deal con ${data.brand} avanzó a ${label}`,
-    html: buildDealStageHtml(data),
-  })
+  return sendMail({ to: data.userEmail, subject: `📬 Deal con ${data.brand} avanzó a ${label}`, html: buildDealStageHtml(data) })
 }
 
 // ─── Goal achieved notification ───────────────────────────────────────────────
@@ -359,13 +386,7 @@ export function buildGoalAchievedHtml(d: GoalAchievedData): string {
 }
 
 export async function sendGoalAchievedNotification(data: GoalAchievedData) {
-  if (!process.env.RESEND_API_KEY) return
-  return resend.emails.send({
-    from: FROM_EMAIL,
-    to:   data.userEmail,
-    subject: `🎯 ¡Meta alcanzada! ${data.goalTitle}`,
-    html: buildGoalAchievedHtml(data),
-  })
+  return sendMail({ to: data.userEmail, subject: `🎯 ¡Meta alcanzada! ${data.goalTitle}`, html: buildGoalAchievedHtml(data) })
 }
 
 // ─── AI limit warning ─────────────────────────────────────────────────────────
@@ -415,13 +436,7 @@ export function buildAiLimitWarningHtml(d: AiLimitWarningData): string {
 }
 
 export async function sendAiLimitWarning(data: AiLimitWarningData) {
-  if (!process.env.RESEND_API_KEY) return
-  return resend.emails.send({
-    from: FROM_EMAIL,
-    to:   data.userEmail,
-    subject: `⚡ Estás al ${Math.round((data.used / data.limit) * 100)}% de tu límite de IA en Influctor`,
-    html: buildAiLimitWarningHtml(data),
-  })
+  return sendMail({ to: data.userEmail, subject: `⚡ Estás al ${Math.round((data.used / data.limit) * 100)}% de tu límite de IA en Influctor`, html: buildAiLimitWarningHtml(data) })
 }
 
 // ─── Publish failed notification ─────────────────────────────────────────────
@@ -477,30 +492,13 @@ export function buildPublishFailedHtml(d: PublishFailedData): string {
 }
 
 export async function sendPublishFailedNotification(data: PublishFailedData) {
-  if (!process.env.RESEND_API_KEY) return
-  return resend.emails.send({
-    from: FROM_EMAIL,
-    to:   data.userEmail,
-    subject: `⚠️ No se pudo publicar: ${data.postTitle}`,
-    html: buildPublishFailedHtml(data),
-  })
+  return sendMail({ to: data.userEmail, subject: `⚠️ No se pudo publicar: ${data.postTitle}`, html: buildPublishFailedHtml(data) })
 }
 
-// ─── Send function ─────────────────────────────────────────────────────────────
+// ─── Weekly report ────────────────────────────────────────────────────────────
 
 export async function sendWeeklyReport(data: WeeklyReportData) {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error('RESEND_API_KEY no configurada')
-  }
-
-  const html = buildWeeklyReportHtml(data)
-
-  return resend.emails.send({
-    from: FROM_EMAIL,
-    to: data.userEmail,
-    subject: `📊 Tu reporte semanal · ${data.weekLabel}`,
-    html,
-  })
+  return sendMail({ to: data.userEmail, subject: `📊 Tu reporte semanal · ${data.weekLabel}`, html: buildWeeklyReportHtml(data) })
 }
 
 // ─── Welcome email ────────────────────────────────────────────────────────────
@@ -595,14 +593,8 @@ export function buildWelcomeHtml(d: WelcomeData, baseUrl: string): string {
 }
 
 export async function sendWelcomeEmail(data: WelcomeData) {
-  const client = await makeResend()
-  const base   = await appUrl()
-  return client.emails.send({
-    from:    FROM_EMAIL,
-    to:      data.userEmail,
-    subject: `¡Bienvenido a Influctor, ${data.userName}! 🚀`,
-    html:    buildWelcomeHtml(data, base),
-  })
+  const base = await appUrl()
+  return sendMail({ to: data.userEmail, subject: `¡Bienvenido a Influctor, ${data.userName}! 🚀`, html: buildWelcomeHtml(data, base) })
 }
 
 // ─── Trial ending email ───────────────────────────────────────────────────────
@@ -691,17 +683,11 @@ export function buildTrialEndingHtml(d: TrialEndingData, baseUrl: string): strin
 }
 
 export async function sendTrialEndingEmail(data: TrialEndingData) {
-  const client = await makeResend()
-  const base   = await appUrl()
+  const base = await appUrl()
   const subject = data.daysLeft <= 1
     ? `🔴 Tu trial de Influctor termina mañana`
     : `⏰ Tu trial de Influctor termina en ${data.daysLeft} días`
-  return client.emails.send({
-    from:    FROM_EMAIL,
-    to:      data.userEmail,
-    subject,
-    html:    buildTrialEndingHtml(data, base),
-  })
+  return sendMail({ to: data.userEmail, subject, html: buildTrialEndingHtml(data, base) })
 }
 
 // ─── Marketplace deal selected ────────────────────────────────────────────────
@@ -763,14 +749,8 @@ export function buildDealSelectedHtml(d: DealSelectedData, baseUrl: string): str
 }
 
 export async function sendDealSelectedEmail(data: DealSelectedData) {
-  const client = await makeResend()
-  const base   = await appUrl()
-  return client.emails.send({
-    from:    FROM_EMAIL,
-    to:      data.creatorEmail,
-    subject: `🎉 ¡${data.brandName} te seleccionó! Pago confirmado en Influctor`,
-    html:    buildDealSelectedHtml(data, base),
-  })
+  const base = await appUrl()
+  return sendMail({ to: data.creatorEmail, subject: `🎉 ¡${data.brandName} te seleccionó! Pago confirmado en Influctor`, html: buildDealSelectedHtml(data, base) })
 }
 
 // ─── Password reset email ─────────────────────────────────────────────────────
@@ -830,11 +810,5 @@ export function buildPasswordResetHtml(d: PasswordResetData): string {
 }
 
 export async function sendPasswordResetEmail(data: PasswordResetData) {
-  const client = await makeResend()
-  return client.emails.send({
-    from:    FROM_EMAIL,
-    to:      data.userEmail,
-    subject: '🔑 Restablece tu contraseña de Influctor',
-    html:    buildPasswordResetHtml(data),
-  })
+  return sendMail({ to: data.userEmail, subject: '🔑 Restablece tu contraseña de Influctor', html: buildPasswordResetHtml(data) })
 }
