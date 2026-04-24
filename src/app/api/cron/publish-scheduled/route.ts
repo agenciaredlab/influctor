@@ -67,8 +67,13 @@ export async function GET(req: NextRequest) {
     let errorMsg: string | undefined
 
     try {
-      // Call the publish endpoint — it handles the Instagram API logic
-      const res = await fetch(`${appUrl}/api/social/instagram/publish`, {
+      // Route to the correct publish endpoint based on platform
+      const platform = (post.platform ?? 'instagram').toLowerCase()
+      const endpoint = platform === 'tiktok'
+        ? `${appUrl}/api/social/tiktok/publish`
+        : `${appUrl}/api/social/instagram/publish`
+
+      const res = await fetch(endpoint, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ postId: post.id }),

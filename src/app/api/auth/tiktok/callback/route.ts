@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
+import { getTikTokClientKey, getTikTokClientSecret, getAppUrl } from '@/lib/config'
 
 const TIKTOK_API = 'https://open.tiktokapis.com/v2'
 
 async function exchangeCode(code: string, appUrl: string) {
+  const [clientKey, clientSecret] = await Promise.all([getTikTokClientKey(), getTikTokClientSecret()])
   const res = await fetch(`${TIKTOK_API}/oauth/token/`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_key:    process.env.TIKTOK_CLIENT_KEY!,
-      client_secret: process.env.TIKTOK_CLIENT_SECRET!,
+      client_key:    clientKey ?? '',
+      client_secret: clientSecret ?? '',
       code,
       grant_type:    'authorization_code',
       redirect_uri:  `${appUrl}/api/auth/tiktok/callback`,
@@ -63,7 +65,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const code  = searchParams.get('code')
   const error = searchParams.get('error')
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const appUrl = (await getAppUrl()) ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const redirectBase = `${appUrl}/settings`
 
   if (error) {

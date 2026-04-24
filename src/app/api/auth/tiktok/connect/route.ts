@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getTikTokClientKey, getAppUrl } from '@/lib/config'
 
 // Scopes:
 //   user.info.basic   — open_id, avatar_url, display_name
 //   user.info.stats   — follower_count, following_count, likes_count, video_count
 //   video.list        — list of recent videos with metrics
-const SCOPES = 'user.info.basic,user.info.stats,video.list'
+//   video.publish     — publish videos directly to TikTok feed
+const SCOPES = 'user.info.basic,user.info.stats,video.list,video.publish'
 
 export async function GET(_req: NextRequest) {
-  const clientKey = process.env.TIKTOK_CLIENT_KEY
-  const appUrl    = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const clientKey = await getTikTokClientKey()
+  const appUrl    = (await getAppUrl()) ?? 'http://localhost:3000'
 
   if (!clientKey) {
     return NextResponse.json(
-      { error: 'TIKTOK_CLIENT_KEY no configurado. Agrega tu Client Key en .env.local' },
+      { error: 'TIKTOK_CLIENT_KEY no configurado. Agrégalo en Admin → Configuración de servicios' },
       { status: 503 }
     )
   }
