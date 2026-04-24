@@ -3,8 +3,9 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import DashboardClient from './DashboardClient'
 import { subDays, startOfMonth } from 'date-fns'
 import { getSessionUser } from '@/lib/session'
+import { getPlan } from '@/lib/plans'
 
-async function getDashboardData(userId: string, user: { name: string; email: string }) {
+async function getDashboardData(userId: string, user: { name: string; email: string; plan: string; aiUsageThisMonth: number; trialEndsAt: Date | null }) {
   const now            = new Date()
   const monthStart     = startOfMonth(now)
   const lastMonthStart = startOfMonth(subDays(monthStart, 1))
@@ -155,6 +156,11 @@ async function getDashboardData(userId: string, user: { name: string; email: str
     }
   })
 
+  const plan      = getPlan(user.plan)
+  const aiLimit   = plan.limits.aiGenerationsPerMonth
+  const aiUsed    = user.aiUsageThisMonth
+  const aiPercent = aiLimit === Infinity ? 0 : Math.round((aiUsed / aiLimit) * 100)
+
   return {
     user,
     goals,
@@ -170,6 +176,14 @@ async function getDashboardData(userId: string, user: { name: string; email: str
       goalsCompleted: completedGoals,
       totalGoals: goals.length,
     },
+    aiUsage: {
+      used:        aiUsed,
+      limit:       aiLimit === Infinity ? null : aiLimit,
+      percent:     aiPercent,
+      planName:    plan.name,
+      unlimited:   aiLimit === Infinity,
+      trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
+    },
     latestByPlatform,
     recentIncomes,
     incomeChart,
@@ -179,8 +193,12 @@ async function getDashboardData(userId: string, user: { name: string; email: str
 }
 
 export default async function DashboardPage() {
-  const user = await getSessionUser()
-  const data = await getDashboardData(user.id, user)
+  const sessionUser = await getSessionUser()
+  const userRecord  = await prisma.user.findUniqueOrThrow({
+    where:  { id: sessionUser.id },
+    select: { id: true, name: true, email: true, plan: true, aiUsageThisMonth: true, trialEndsAt: true },
+  })
+  const data = await getDashboardData(sessionUser.id, userRecord)
 
   return (
     <DashboardLayout

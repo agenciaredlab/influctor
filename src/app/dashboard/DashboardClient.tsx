@@ -49,6 +49,14 @@ interface DashboardClientProps {
       goalsCompleted: number
       totalGoals: number
     }
+    aiUsage: {
+      used:        number
+      limit:       number | null
+      percent:     number
+      planName:    string
+      unlimited:   boolean
+      trialEndsAt: string | null
+    }
     latestByPlatform: Record<string, any>
     recentIncomes: any[]
     incomeChart: any[]
@@ -113,8 +121,67 @@ function CustomTooltip({ active, payload, label, prefix = '', suffix = '' }: any
   )
 }
 
+function AiUsageWidget({ aiUsage }: { aiUsage: DashboardClientProps['data']['aiUsage'] }) {
+  const { used, limit, percent, planName, unlimited, trialEndsAt } = aiUsage
+
+  const daysLeft = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400_000))
+    : null
+
+  const barColor =
+    percent >= 90 ? 'bg-red-500' :
+    percent >= 70 ? 'bg-amber-500' :
+    'bg-violet-500'
+
+  return (
+    <div className="bg-[#0f0f1a] border border-[#1e1e35] rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
+          <span className="text-violet-400 text-base">⚡</span>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">IA este mes</p>
+          <p className="text-sm font-semibold text-white">
+            {unlimited ? 'Ilimitado' : `${used} / ${limit} generaciones`}
+          </p>
+        </div>
+      </div>
+
+      {!unlimited && (
+        <div className="flex-1 w-full sm:w-auto">
+          <div className="h-2 rounded-full bg-[#1e1e35] overflow-hidden">
+            <div
+              className={`h-2 rounded-full transition-all ${barColor}`}
+              style={{ width: `${Math.min(percent, 100)}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">{percent}% usado · {Math.max(0, (limit ?? 0) - used)} restantes</p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 ml-auto flex-shrink-0">
+        {daysLeft !== null && (
+          <span className={`text-xs font-medium px-2 py-1 rounded-full border ${
+            daysLeft <= 1  ? 'text-red-400 bg-red-500/10 border-red-500/20' :
+            daysLeft <= 3  ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' :
+                             'text-violet-400 bg-violet-500/10 border-violet-500/20'
+          }`}>
+            Trial: {daysLeft}d restantes
+          </span>
+        )}
+        <Link
+          href="/pricing"
+          className="text-xs text-violet-400 hover:text-violet-300 border border-violet-500/30 hover:border-violet-400/50 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          {planName} · Mejorar →
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardClient({ data }: DashboardClientProps) {
-  const { stats, goals, campaigns, latestByPlatform, recentIncomes, incomeChart, growthChart, connectedAccounts = [] } = data
+  const { stats, goals, campaigns, aiUsage, latestByPlatform, recentIncomes, incomeChart, growthChart, connectedAccounts = [] } = data
 
   // Process growth chart data (monthly aggregated)
   const growthData = useMemo(() => {
@@ -199,6 +266,9 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           color="text-pink-400 bg-pink-900"
         />
       </div>
+
+      {/* AI Usage Widget */}
+      <AiUsageWidget aiUsage={aiUsage} />
 
       {/* Connected Accounts Bar */}
       {connectedAccounts.length > 0 && (

@@ -708,6 +708,8 @@ cat >> /tmp/crontab_clean << CRONEOF
 0 7 * * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "${CRON_URL}/api/cron/sync-tiktok" >/dev/null 2>&1
 # influctor-cron: recordatorio de trial (diario 10am UTC)
 0 10 * * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "${CRON_URL}/api/cron/trial-reminder" >/dev/null 2>&1
+# influctor-cron: reset mensual de uso de IA (día 1 de cada mes, 00:05 UTC)
+5 0 1 * * curl -sf -H "Authorization: Bearer ${CRON_SECRET}" "${CRON_URL}/api/cron/ai-reset" >/dev/null 2>&1
 CRONEOF
 
 crontab /tmp/crontab_clean
