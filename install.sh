@@ -14,6 +14,47 @@ warn() { echo -e "${YELLOW}⚠${NC}  $1"; }
 die()  { echo -e "${RED}✘${NC}  $1"; exit 1; }
 hr()   { echo -e "\n${CYAN}────────────────────────────────────────${NC}\n"; }
 
+# ── Detección de proxy existente ─────────────────────────────
+detect_proxy() {
+  # Traefik como servicio del sistema
+  if systemctl is-active --quiet traefik 2>/dev/null; then
+    echo "traefik-system"; return
+  fi
+  # Binario de Traefik instalado (aunque no corra como servicio)
+  if command -v traefik &>/dev/null; then
+    echo "traefik-binary"; return
+  fi
+  # Traefik corriendo en Docker
+  if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null | grep -qi traefik; then
+    echo "traefik-docker"; return
+  fi
+  # Nginx activo
+  if systemctl is-active --quiet nginx 2>/dev/null; then
+    echo "nginx-active"; return
+  fi
+  # Nginx instalado pero inactivo
+  if command -v nginx &>/dev/null; then
+    echo "nginx-installed"; return
+  fi
+  echo "none"
+}
+
+# Busca el directorio de configs dinámicas de Traefik
+find_traefik_dynamic_dir() {
+  for cfg in /etc/traefik/traefik.yml /etc/traefik/traefik.toml \
+             /opt/traefik/traefik.yml /opt/traefik/traefik.toml; do
+    if [[ -f "$cfg" ]]; then
+      # Extrae la ruta del file provider (directory: ...)
+      local dir
+      dir=$(grep -E '^\s*(directory|watch)' "$cfg" 2>/dev/null | \
+            grep -v watch | head -1 | sed 's/.*directory[: ]*//;s/[" ]//g' || true)
+      [[ -n "$dir" && -d "$dir" ]] && echo "$dir" && return
+    fi
+  done
+  # Fallback: directorio estándar
+  echo "/etc/traefik/dynamic"
+}
+
 # ── Requiere root ────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && die "Ejecuta este script como root: sudo bash install.sh"
 
@@ -67,22 +108,80 @@ else
   INSTALL_POSTGRES=false
 fi
 
-# SSL
+# ── Detección de proxy ───────────────────────────────────────
+echo ""
+echo -e "  ${BOLD}Proxy reverso${NC}"
+DETECTED_PROXY=$(detect_proxy)
+PROXY_MODE=""   # nginx | traefik-new | traefik-existing | traefik-docker-manual
+
+case "$DETECTED_PROXY" in
+  traefik-system)
+    ok "Traefik detectado como servicio del sistema — se usará."
+    PROXY_MODE="traefik-existing"
+    ;;
+  traefik-binary)
+    ok "Binario de Traefik detectado — se configurará como servicio."
+    PROXY_MODE="traefik-existing"
+    ;;
+  traefik-docker)
+    warn "Traefik en Docker detectado."
+    warn "La config automática no es posible en este caso."
+    echo -e "  Al terminar el instalador recibirás el bloque YAML que debes"
+    echo -e "  agregar a tu docker-compose.yml manualmente."
+    PROXY_MODE="traefik-docker-manual"
+    ;;
+  nginx-active|nginx-installed)
+    ok "Nginx detectado — se agregará el sitio de Influctor."
+    PROXY_MODE="nginx"
+    ;;
+  none)
+    echo "  No se encontró ningún proxy reverso instalado."
+    echo "  [1] Instalar Nginx  (simple, recomendado para un solo sitio)"
+    echo "  [2] Instalar Traefik (recomendado si vas a tener múltiples servicios)"
+    read -rp "  Opción [1]: " PROXY_CHOICE
+    PROXY_CHOICE="${PROXY_CHOICE:-1}"
+    [[ "$PROXY_CHOICE" == "2" ]] && PROXY_MODE="traefik-new" || PROXY_MODE="nginx"
+    ;;
+esac
+
+# ── SSL ──────────────────────────────────────────────────────
 echo ""
 echo -e "  ${BOLD}Certificado SSL${NC}"
-echo "  [1] Tengo los archivos del certificado de Hostinger"
-echo "  [2] Instalar Let's Encrypt (Certbot) — requiere que el dominio apunte a este servidor"
-echo "  [3] Solo HTTP por ahora (activar SSL después)"
-read -rp "  Opción [1]: " SSL_CHOICE
-SSL_CHOICE="${SSL_CHOICE:-1}"
 
-SSL_CERT=""
-SSL_KEY=""
-if [[ "$SSL_CHOICE" == "1" ]]; then
-  read -rp "  Ruta del archivo .crt o .pem [/etc/ssl/influctor.crt]: " SSL_CERT
-  SSL_CERT="${SSL_CERT:-/etc/ssl/influctor.crt}"
-  read -rp "  Ruta del archivo .key [/etc/ssl/influctor.key]: " SSL_KEY
-  SSL_KEY="${SSL_KEY:-/etc/ssl/influctor.key}"
+# Traefik-docker: SSL lo maneja Docker, no preguntamos
+SSL_CHOICE="3"; SSL_CERT=""; SSL_KEY=""
+
+if [[ "$PROXY_MODE" != "traefik-docker-manual" ]]; then
+  if [[ "$PROXY_MODE" == "traefik-new" ]]; then
+    echo "  [1] Let's Encrypt automático (Traefik lo gestiona solo)"
+    echo "  [2] Tengo los archivos del certificado de Hostinger"
+    echo "  [3] Solo HTTP por ahora"
+    read -rp "  Opción [1]: " SSL_CHOICE
+    SSL_CHOICE="${SSL_CHOICE:-1}"
+  else
+    echo "  [1] Tengo los archivos del certificado de Hostinger"
+    echo "  [2] Instalar Let's Encrypt (Certbot)"
+    echo "  [3] Solo HTTP por ahora"
+    read -rp "  Opción [1]: " SSL_CHOICE
+    SSL_CHOICE="${SSL_CHOICE:-1}"
+  fi
+
+  if [[ "$PROXY_MODE" == "traefik-new" && "$SSL_CHOICE" == "1" ]]; then
+    read -rp "  Email para Let's Encrypt [admin@${DOMAIN}]: " ACME_EMAIL
+    ACME_EMAIL="${ACME_EMAIL:-admin@${DOMAIN}}"
+  fi
+
+  if [[ "$SSL_CHOICE" == "1" && "$PROXY_MODE" != "traefik-new" ]]; then
+    read -rp "  Ruta del archivo .crt o .pem [/etc/ssl/influctor.crt]: " SSL_CERT
+    SSL_CERT="${SSL_CERT:-/etc/ssl/influctor.crt}"
+    read -rp "  Ruta del archivo .key [/etc/ssl/influctor.key]: " SSL_KEY
+    SSL_KEY="${SSL_KEY:-/etc/ssl/influctor.key}"
+  elif [[ "$SSL_CHOICE" == "2" && "$PROXY_MODE" == "traefik-new" ]]; then
+    read -rp "  Ruta del archivo .crt o .pem [/etc/ssl/influctor.crt]: " SSL_CERT
+    SSL_CERT="${SSL_CERT:-/etc/ssl/influctor.crt}"
+    read -rp "  Ruta del archivo .key [/etc/ssl/influctor.key]: " SSL_KEY
+    SSL_KEY="${SSL_KEY:-/etc/ssl/influctor.key}"
+  fi
 fi
 
 # NEXTAUTH_SECRET
@@ -114,7 +213,11 @@ info "Actualizando paquetes del sistema..."
 apt-get update -qq
 
 info "Instalando dependencias base..."
-apt-get install -y -qq curl git nginx openssl
+if [[ "$PROXY_MODE" == traefik* ]]; then
+  apt-get install -y -qq curl git openssl
+else
+  apt-get install -y -qq curl git nginx openssl
+fi
 
 # ── Node.js 20 LTS ──────────────────────────────────────────
 NODE_VER=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1 || echo "0")
@@ -274,17 +377,17 @@ pm2 save
 ok "PM2 configurado. La app corre en el puerto $APP_PORT."
 
 # ══════════════════════════════════════════════════════════════
-#  PASO 6: NGINX
+#  PASO 6: PROXY REVERSO (Nginx o Traefik)
 # ══════════════════════════════════════════════════════════════
 hr
-info "Configurando Nginx..."
 
-NGINX_CONF="/etc/nginx/sites-available/influctor"
+# ── RAMA NGINX ───────────────────────────────────────────────
+if [[ "$PROXY_MODE" == "nginx" ]]; then
+  info "Configurando Nginx..."
+  NGINX_CONF="/etc/nginx/sites-available/influctor"
 
-# ── Bloque SSL ───────────────────────────────────────────────
-if [[ "$SSL_CHOICE" == "1" && -f "$SSL_CERT" && -f "$SSL_KEY" ]]; then
-  # SSL con certificado de Hostinger
-  cat > "$NGINX_CONF" << NGINXEOF
+  if [[ "$SSL_CHOICE" == "1" && -f "$SSL_CERT" && -f "$SSL_KEY" ]]; then
+    cat > "$NGINX_CONF" << NGINXEOF
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -300,7 +403,6 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
     ssl_session_cache   shared:SSL:10m;
-
     client_max_body_size 50M;
 
     location / {
@@ -318,10 +420,9 @@ server {
 }
 NGINXEOF
 
-elif [[ "$SSL_CHOICE" == "2" ]]; then
-  # Let's Encrypt — Nginx HTTP para validación, después Certbot agrega SSL
-  apt-get install -y -qq certbot python3-certbot-nginx
-  cat > "$NGINX_CONF" << NGINXEOF
+  elif [[ "$SSL_CHOICE" == "2" ]]; then
+    apt-get install -y -qq certbot python3-certbot-nginx
+    cat > "$NGINX_CONF" << NGINXEOF
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -341,9 +442,8 @@ server {
 }
 NGINXEOF
 
-else
-  # Solo HTTP
-  cat > "$NGINX_CONF" << NGINXEOF
+  else
+    cat > "$NGINX_CONF" << NGINXEOF
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -363,21 +463,227 @@ server {
     }
 }
 NGINXEOF
-fi
+  fi
 
-# Activar el sitio
-ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/influctor
-rm -f /etc/nginx/sites-enabled/default
+  ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/influctor
+  rm -f /etc/nginx/sites-enabled/default
+  nginx -t && systemctl reload nginx
+  ok "Nginx configurado para $DOMAIN."
 
-# Verificar y recargar Nginx
-nginx -t && systemctl reload nginx
-ok "Nginx configurado para $DOMAIN."
+  if [[ "$SSL_CHOICE" == "2" ]]; then
+    info "Solicitando certificado Let's Encrypt para $DOMAIN..."
+    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "admin@${DOMAIN}" --redirect || \
+      warn "No se pudo obtener el certificado. Asegúrate de que el dominio apunte a este servidor e intenta: certbot --nginx -d $DOMAIN"
+  fi
 
-# Let's Encrypt — solicitar certificado
-if [[ "$SSL_CHOICE" == "2" ]]; then
-  info "Solicitando certificado Let's Encrypt para $DOMAIN..."
-  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "admin@${DOMAIN}" --redirect || \
-    warn "No se pudo obtener el certificado. Asegúrate de que el dominio apunte a este servidor e intenta: certbot --nginx -d $DOMAIN"
+# ── RAMA TRAEFIK NUEVO ───────────────────────────────────────
+elif [[ "$PROXY_MODE" == "traefik-new" ]]; then
+  info "Instalando Traefik..."
+
+  TRAEFIK_BIN="/usr/local/bin/traefik"
+  TRAEFIK_VER=$(curl -s https://api.github.com/repos/traefik/traefik/releases/latest \
+    | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/' 2>/dev/null || echo "3.3.3")
+  TRAEFIK_URL="https://github.com/traefik/traefik/releases/download/v${TRAEFIK_VER}/traefik_v${TRAEFIK_VER}_linux_amd64.tar.gz"
+
+  curl -fsSL "$TRAEFIK_URL" -o /tmp/traefik.tar.gz
+  tar -xzf /tmp/traefik.tar.gz -C /tmp traefik
+  mv /tmp/traefik "$TRAEFIK_BIN"
+  chmod +x "$TRAEFIK_BIN"
+  rm -f /tmp/traefik.tar.gz
+
+  mkdir -p /etc/traefik/dynamic /etc/traefik/certs
+
+  # Configuración estática de Traefik
+  if [[ "$SSL_CHOICE" == "1" ]]; then
+    # ACME (Let's Encrypt)
+    cat > /etc/traefik/traefik.yml << TRAEFIKEOF
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@${DOMAIN}
+      storage: /etc/traefik/acme.json
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: ERROR
+TRAEFIKEOF
+    touch /etc/traefik/acme.json && chmod 600 /etc/traefik/acme.json
+
+  elif [[ "$SSL_CHOICE" == "2" && -f "$SSL_CERT" && -f "$SSL_KEY" ]]; then
+    # Certificados propios
+    cp "$SSL_CERT" /etc/traefik/certs/cert.pem
+    cp "$SSL_KEY"  /etc/traefik/certs/key.pem
+    cat > /etc/traefik/traefik.yml << TRAEFIKEOF
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: ERROR
+TRAEFIKEOF
+    cat > /etc/traefik/dynamic/tls.yml << TLSEOF
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/cert.pem
+      keyFile:  /etc/traefik/certs/key.pem
+TLSEOF
+
+  else
+    # Solo HTTP
+    cat > /etc/traefik/traefik.yml << TRAEFIKEOF
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: ERROR
+TRAEFIKEOF
+  fi
+
+  # Ruta dinámica para la app
+  ENTRYPOINT="web"
+  RULE_TLS=""
+  [[ "$SSL_CHOICE" != "3" ]] && ENTRYPOINT="websecure"
+  if [[ "$SSL_CHOICE" == "1" ]]; then
+    RULE_TLS='      tls:
+        certResolver: letsencrypt'
+  elif [[ "$SSL_CHOICE" == "2" ]]; then
+    RULE_TLS='      tls: {}'
+  fi
+  cat > /etc/traefik/dynamic/influctor.yml << DYNEOF
+http:
+  routers:
+    influctor:
+      rule: "Host(\`${DOMAIN}\`)"
+      entryPoints:
+        - ${ENTRYPOINT}
+      service: influctor
+${RULE_TLS}
+  services:
+    influctor:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:${APP_PORT}"
+DYNEOF
+
+  # Servicio systemd para Traefik
+  cat > /etc/systemd/system/traefik.service << SVCEOF
+[Unit]
+Description=Traefik Reverse Proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/traefik --configFile=/etc/traefik/traefik.yml
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+  systemctl daemon-reload
+  systemctl enable traefik
+  systemctl start traefik
+  ok "Traefik instalado y corriendo para $DOMAIN."
+
+# ── RAMA TRAEFIK EXISTENTE ───────────────────────────────────
+elif [[ "$PROXY_MODE" == "traefik-existing" ]]; then
+  info "Configurando ruta en Traefik existente..."
+
+  DYNAMIC_DIR=$(find_traefik_dynamic_dir)
+  if [[ -z "$DYNAMIC_DIR" ]]; then
+    DYNAMIC_DIR="/etc/traefik/dynamic"
+    mkdir -p "$DYNAMIC_DIR"
+    warn "No se encontró directorio dinámico de Traefik. Usando $DYNAMIC_DIR — verifica que traefik.yml apunte a este directorio."
+  fi
+
+  ENTRYPOINT="websecure"
+  RULE_TLS="      tls: {}"
+  [[ "$SSL_CHOICE" == "3" ]] && ENTRYPOINT="web" && RULE_TLS=""
+
+  cat > "${DYNAMIC_DIR}/influctor.yml" << DYNEOF
+http:
+  routers:
+    influctor:
+      rule: "Host(\`${DOMAIN}\`)"
+      entryPoints:
+        - ${ENTRYPOINT}
+      service: influctor
+${RULE_TLS}
+  services:
+    influctor:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:${APP_PORT}"
+DYNEOF
+
+  ok "Ruta influctor.yml creada en ${DYNAMIC_DIR}. Traefik la recargará automáticamente."
+
+# ── RAMA TRAEFIK DOCKER (manual) ─────────────────────────────
+elif [[ "$PROXY_MODE" == "traefik-docker-manual" ]]; then
+  warn "Traefik corre en Docker. Agrega esta entrada a tu docker-compose.yml del servicio Traefik:"
+  cat << DOCKEREOF
+
+  # ── Agregar al servicio 'influctor' en tu docker-compose.yml ──
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.influctor.rule=Host(\`${DOMAIN}\`)"
+    - "traefik.http.routers.influctor.entrypoints=websecure"
+    - "traefik.http.routers.influctor.tls=true"
+    - "traefik.http.services.influctor.loadbalancer.server.port=${APP_PORT}"
+
+DOCKEREOF
+  info "Luego recarga con: docker compose up -d"
 fi
 
 # ══════════════════════════════════════════════════════════════
@@ -468,7 +774,20 @@ echo -e "  ${BOLD}Comandos útiles:${NC}"
 echo -e "    pm2 status              — ver estado de la app"
 echo -e "    pm2 logs influctor      — ver logs en tiempo real"
 echo -e "    pm2 restart influctor   — reiniciar la app"
-echo -e "    nginx -t                — verificar config de Nginx"
+if [[ "$PROXY_MODE" == "nginx" ]]; then
+  echo -e "    nginx -t                — verificar config de Nginx"
+  echo -e "    systemctl reload nginx  — recargar Nginx"
+elif [[ "$PROXY_MODE" == "traefik-new" ]]; then
+  echo -e "    systemctl status traefik          — ver estado de Traefik"
+  echo -e "    systemctl restart traefik         — reiniciar Traefik"
+  echo -e "    journalctl -u traefik -f          — ver logs de Traefik"
+  echo -e "    ls /etc/traefik/dynamic/          — ver rutas dinámicas"
+elif [[ "$PROXY_MODE" == "traefik-existing" ]]; then
+  echo -e "    ls ${DYNAMIC_DIR}/               — ver rutas dinámicas"
+  echo -e "    cat ${DYNAMIC_DIR}/influctor.yml — ver config de la app"
+elif [[ "$PROXY_MODE" == "traefik-docker-manual" ]]; then
+  echo -e "    docker compose up -d              — aplicar cambios en docker-compose.yml"
+fi
 echo ""
 
 if [[ "$INSTALL_POSTGRES" == "true" ]]; then
