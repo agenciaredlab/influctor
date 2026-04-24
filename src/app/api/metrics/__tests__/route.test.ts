@@ -161,4 +161,21 @@ describe('POST /api/metrics', () => {
       })
     )
   })
+
+  it('returns 500 when DB throws on GET', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(mockSession as any)
+    vi.mocked(prisma.socialMetric.findMany).mockRejectedValue(new Error('DB error'))
+    const res = await GET(new NextRequest('http://localhost/api/metrics'))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 500 when DB throws on POST', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(mockSession as any)
+    vi.mocked(prisma.socialMetric.create).mockRejectedValue(new Error('DB error'))
+    const res = await POST(new NextRequest('http://localhost/api/metrics', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform: 'instagram', date: '2025-01-01' }),
+    }))
+    expect(res.status).toBe(500)
+  })
 })

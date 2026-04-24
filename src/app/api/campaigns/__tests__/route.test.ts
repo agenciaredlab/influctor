@@ -133,4 +133,21 @@ describe('POST /api/campaigns', () => {
       expect.objectContaining({ data: expect.objectContaining({ objective: 'growth' }) })
     )
   })
+
+  it('returns 500 when DB throws on GET', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.$transaction).mockRejectedValue(new Error('DB error'))
+    const res = await GET(new NextRequest('http://localhost/api/campaigns'))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 500 when DB throws on POST', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.campaign.create).mockRejectedValue(new Error('DB error'))
+    const res = await POST(new NextRequest('http://localhost/api/campaigns', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', platform: 'instagram', startDate: '2025-01-01' }),
+    }))
+    expect(res.status).toBe(500)
+  })
 })

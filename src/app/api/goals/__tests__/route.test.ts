@@ -222,4 +222,21 @@ describe('POST /api/goals', () => {
       expect.objectContaining({ data: expect.objectContaining({ score: 50 }) })
     )
   })
+
+  it('returns 500 when DB throws on GET', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(mockSession as any)
+    vi.mocked(prisma.$transaction).mockRejectedValue(new Error('DB error'))
+    const res = await GET(new NextRequest('http://localhost/api/goals'))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 500 when DB throws on POST', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(mockSession as any)
+    vi.mocked(prisma.goal.create).mockRejectedValue(new Error('DB error'))
+    const res = await POST(new NextRequest('http://localhost/api/goals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Goal', targetValue: 100 }),
+    }))
+    expect(res.status).toBe(500)
+  })
 })

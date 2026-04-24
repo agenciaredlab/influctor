@@ -83,6 +83,12 @@ describe('GET /api/viral-lab', () => {
       expect.objectContaining({ where: { userId: SESSION.id } })
     )
   })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(prisma.viralAnalysis.findMany).mockRejectedValue(new Error('DB error'))
+    const res = await GET()
+    expect(res.status).toBe(500)
+  })
 })
 
 // ─── POST ─────────────────────────────────────────────────────────────────────
@@ -120,6 +126,19 @@ describe('POST /api/viral-lab', () => {
       expect.objectContaining({ data: expect.objectContaining({ userId: SESSION.id }) })
     )
   })
+
+  it('returns 400 when platform is missing', async () => {
+    const res = await POST(makeReq('POST', { hook: 'Test hook', score: 55 }))
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(prisma.viralAnalysis.create).mockRejectedValue(new Error('DB error'))
+    const res = await POST(makeReq('POST', {
+      platform: 'instagram', hook: 'Test', score: 70, factors: FACTORS, suggestions: [],
+    }))
+    expect(res.status).toBe(500)
+  })
 })
 
 // ─── DELETE ───────────────────────────────────────────────────────────────────
@@ -151,5 +170,11 @@ describe('DELETE /api/viral-lab', () => {
     expect(res.status).toBe(200)
     expect(body.success).toBe(true)
     expect(prisma.viralAnalysis.delete).toHaveBeenCalledWith({ where: { id: 'va_1' } })
+  })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(prisma.viralAnalysis.findFirst).mockRejectedValue(new Error('DB error'))
+    const res = await DELETE(makeReq('DELETE', undefined, 'http://localhost/api/viral-lab?id=va_1'))
+    expect(res.status).toBe(500)
   })
 })

@@ -93,4 +93,10 @@ describe('POST /api/auth/register', () => {
       expect.objectContaining({ data: expect.objectContaining({ password: 'hashed_password' }) })
     )
   })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(prisma.user.findUnique).mockRejectedValue(new Error('DB error'))
+    const res = await POST(makeReq({ name: 'Test', email: 'test@example.com', password: 'password123' }))
+    expect(res.status).toBe(500)
+  })
 })

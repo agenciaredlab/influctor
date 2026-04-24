@@ -133,4 +133,21 @@ describe('POST /api/content', () => {
       expect.objectContaining({ data: expect.objectContaining({ userId: 'user_1' }) })
     )
   })
+
+  it('returns 500 when DB throws on GET', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.contentPost.findMany).mockRejectedValue(new Error('DB error'))
+    const res = await GET(new NextRequest('http://localhost/api/content'))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 500 when DB throws on POST', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.contentPost.create).mockRejectedValue(new Error('DB error'))
+    const res = await POST(new NextRequest('http://localhost/api/content', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Post', platform: 'instagram', type: 'post' }),
+    }))
+    expect(res.status).toBe(500)
+  })
 })

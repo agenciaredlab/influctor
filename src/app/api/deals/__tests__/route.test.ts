@@ -121,4 +121,21 @@ describe('POST /api/deals', () => {
       expect.objectContaining({ data: expect.objectContaining({ stage: 'outreach' }) })
     )
   })
+
+  it('returns 500 when DB throws on GET', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.brandDeal.findMany).mockRejectedValue(new Error('DB error'))
+    const res = await GET(new NextRequest('http://localhost/api/deals'))
+    expect(res.status).toBe(500)
+  })
+
+  it('returns 500 when DB throws on POST', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.brandDeal.create).mockRejectedValue(new Error('DB error'))
+    const res = await POST(new NextRequest('http://localhost/api/deals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand: 'Nike', platform: 'instagram', type: 'post' }),
+    }))
+    expect(res.status).toBe(500)
+  })
 })
