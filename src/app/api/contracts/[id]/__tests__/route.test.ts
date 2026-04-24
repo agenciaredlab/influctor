@@ -78,4 +78,11 @@ describe('DELETE /api/contracts/[id]', () => {
     expect(body.success).toBe(true)
     expect(prisma.contract.delete).toHaveBeenCalledWith({ where: { id: 'c1' } })
   })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.contract.findFirst).mockRejectedValue(new Error('DB error'))
+    const res = await DELETE(req('DELETE'), { params: { id: 'c1' } })
+    expect(res.status).toBe(500)
+  })
 })

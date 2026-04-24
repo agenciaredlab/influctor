@@ -173,4 +173,11 @@ describe('DELETE /api/content/[id]', () => {
     const body = await res.json()
     expect(body.success).toBe(true)
   })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.contentPost.findFirst).mockRejectedValue(new Error('DB error'))
+    const res = await DELETE(new NextRequest('http://localhost/api/content/post_1', { method: 'DELETE' }), params)
+    expect(res.status).toBe(500)
+  })
 })

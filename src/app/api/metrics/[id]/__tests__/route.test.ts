@@ -142,4 +142,12 @@ describe('DELETE /api/metrics/[id]', () => {
 
     expect(prisma.socialMetric.delete).toHaveBeenCalledWith({ where: { id: 'metric_1' } })
   })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(mockSession as any)
+    vi.mocked(prisma.socialMetric.findFirst).mockRejectedValue(new Error('DB error'))
+    const req = new NextRequest('http://localhost/api/metrics/metric_1', { method: 'DELETE' })
+    const res = await DELETE(req, params)
+    expect(res.status).toBe(500)
+  })
 })

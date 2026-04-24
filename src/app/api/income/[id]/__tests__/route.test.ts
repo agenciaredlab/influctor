@@ -150,4 +150,11 @@ describe('DELETE /api/income/[id]', () => {
     await DELETE(new NextRequest('http://localhost/api/income/income_1', { method: 'DELETE' }), params)
     expect(prisma.income.delete).toHaveBeenCalledWith({ where: { id: 'income_1' } })
   })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.income.findFirst).mockRejectedValue(new Error('DB error'))
+    const res = await DELETE(new NextRequest('http://localhost/api/income/income_1', { method: 'DELETE' }), params)
+    expect(res.status).toBe(500)
+  })
 })

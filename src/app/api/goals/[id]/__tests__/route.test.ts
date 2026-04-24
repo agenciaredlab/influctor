@@ -218,4 +218,11 @@ describe('DELETE /api/goals/[id]', () => {
     await DELETE(new NextRequest('http://localhost/api/goals/goal_1', { method: 'DELETE' }), params)
     expect(prisma.goal.delete).toHaveBeenCalledWith({ where: { id: 'goal_1' } })
   })
+
+  it('returns 500 when DB throws', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.goal.findFirst).mockRejectedValue(new Error('DB error'))
+    const res = await DELETE(new NextRequest('http://localhost/api/goals/goal_1', { method: 'DELETE' }), params)
+    expect(res.status).toBe(500)
+  })
 })
