@@ -219,24 +219,43 @@ hr
 info "Configurando PM2..."
 
 cat > "$APP_DIR/ecosystem.config.js" << ECOSYSTEMEOF
+const { execSync } = require('child_process')
+
+// Carga las variables de .env.production en el entorno de PM2
+function loadEnv(file) {
+  try {
+    const lines = require('fs').readFileSync(file, 'utf8').split('\n')
+    const env = {}
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const [key, ...rest] = trimmed.split('=')
+      if (key) env[key.trim()] = rest.join('=').trim().replace(/^["']|["']$/g, '')
+    }
+    return env
+  } catch { return {} }
+}
+
+const envVars = {
+  NODE_ENV: 'production',
+  PORT:     '${APP_PORT}',
+  ...loadEnv('${APP_DIR}/.env.production'),
+}
+
 module.exports = {
   apps: [{
-    name:         'influctor',
-    script:       'node_modules/.bin/next',
-    args:         'start -p ${APP_PORT}',
-    cwd:          '${APP_DIR}',
-    instances:    1,
-    autorestart:  true,
-    watch:        false,
+    name:               'influctor',
+    script:             'node_modules/.bin/next',
+    args:               'start -p ${APP_PORT}',
+    cwd:                '${APP_DIR}',
+    instances:          1,
+    autorestart:        true,
+    watch:              false,
     max_memory_restart: '512M',
-    env: {
-      NODE_ENV:    'production',
-      PORT:        ${APP_PORT},
-    },
-    env_file: '${APP_DIR}/.env.production',
-    error_file:  '/var/log/influctor/error.log',
-    out_file:    '/var/log/influctor/out.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    env:                envVars,
+    error_file:         '/var/log/influctor/error.log',
+    out_file:           '/var/log/influctor/out.log',
+    log_date_format:    'YYYY-MM-DD HH:mm:ss',
   }],
 }
 ECOSYSTEMEOF
