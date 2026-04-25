@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getTikTokClientKey, getTikTokClientSecret } from '@/lib/config'
 
 const TIKTOK_API = 'https://open.tiktokapis.com/v2'
 
@@ -14,12 +15,17 @@ async function maybeRefreshToken(account: TikTokAccountForSync): Promise<string>
   if (!needsRefresh) return account.accessToken
   if (!account.refreshToken) return account.accessToken // can't refresh, try anyway
 
+  const [clientKey, clientSecret] = await Promise.all([
+    getTikTokClientKey(),
+    getTikTokClientSecret(),
+  ])
+
   const res = await fetch(`${TIKTOK_API}/oauth/token/`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_key:    process.env.TIKTOK_CLIENT_KEY!,
-      client_secret: process.env.TIKTOK_CLIENT_SECRET!,
+      client_key:    clientKey,
+      client_secret: clientSecret,
       grant_type:    'refresh_token',
       refresh_token: account.refreshToken,
     }),

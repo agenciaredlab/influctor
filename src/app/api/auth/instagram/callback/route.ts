@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
+import { getInstagramAppId, getInstagramAppSecret, getAppUrl } from '@/lib/config'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-async function exchangeCodeForToken(code: string): Promise<{
-  access_token: string
-  token_type: string
-}> {
+async function exchangeCodeForToken(
+  code: string,
+  appId: string,
+  appSecret: string,
+  appUrl: string,
+): Promise<{ access_token: string; token_type: string }> {
   const res = await fetch(`${META_BASE}/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: process.env.INSTAGRAM_APP_ID!,
-      client_secret: process.env.INSTAGRAM_APP_SECRET!,
-      redirect_uri: `${APP_URL}/api/auth/instagram/callback`,
+      client_id:     appId,
+      client_secret: appSecret,
+      redirect_uri:  `${appUrl}/api/auth/instagram/callback`,
       code,
     }),
   })
@@ -26,15 +28,15 @@ async function exchangeCodeForToken(code: string): Promise<{
   return res.json()
 }
 
-async function getLongLivedToken(shortToken: string): Promise<{
-  access_token: string
-  token_type: string
-  expires_in: number
-}> {
+async function getLongLivedToken(
+  shortToken: string,
+  appId: string,
+  appSecret: string,
+): Promise<{ access_token: string; token_type: string; expires_in: number }> {
   const params = new URLSearchParams({
-    grant_type: 'fb_exchange_token',
-    client_id: process.env.INSTAGRAM_APP_ID!,
-    client_secret: process.env.INSTAGRAM_APP_SECRET!,
+    grant_type:        'fb_exchange_token',
+    client_id:         appId,
+    client_secret:     appSecret,
     fb_exchange_token: shortToken,
   })
   const res = await fetch(`${META_BASE}/oauth/access_token?${params}`)
@@ -83,7 +85,13 @@ export async function GET(req: NextRequest) {
   const error = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
 
-  const redirectBase = `${APP_URL}/settings`
+  const [appId, appSecret, baseUrl] = await Promise.all([
+    getInstagramAppId(),
+    getInstagramAppSecret(),
+    getAppUrl(),
+  ])
+  const resolvedAppUrl = baseUrl || 'http://localhost:3000'
+  const redirectBase = `${resolvedAppUrl}/settings`
 
   // User denied access
   if (error) {
@@ -103,10 +111,10 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Exchange auth code for short-lived token
-    const { access_token: shortToken } = await exchangeCodeForToken(code)
+    const { access_token: shortToken } = await exchangeCodeForToken(code, appId, appSecret, resolvedAppUrl)
 
     // 2. Exchange for long-lived token (60 days)
-    const { access_token: longToken, expires_in } = await getLongLivedToken(shortToken)
+    const { access_token: longToken, expires_in } = await getLongLivedToken(shortToken, appId, appSecret)
 
     const tokenExpiresAt = new Date(Date.now() + expires_in * 1000)
 
