@@ -253,7 +253,7 @@ describe('syncTikTokAccount — snapshot', () => {
     await syncTikTokAccount(BASE_ACCOUNT, 'user_1')
 
     const upsertCall = vi.mocked(prisma.socialSnapshot.upsert).mock.calls[0][0]
-    const snapshotDate = upsertCall.where.socialAccountId_date.date as Date
+    const snapshotDate = upsertCall.where.socialAccountId_date!.date as Date
 
     expect(snapshotDate.getHours()).toBe(0)
     expect(snapshotDate.getMinutes()).toBe(0)
