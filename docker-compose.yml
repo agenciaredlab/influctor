@@ -1,0 +1,107 @@
+# ══════════════════════════════════════════════════════════════
+#  Influctor — Stack para Portainer
+#
+#  AISLAMIENTO TOTAL:
+#   - Todos los contenedores usan el prefijo "influctor-"
+#   - Red interna "influctor_net" — completamente separada de
+#     otros stacks (Supabase, Postgres, etc.)
+#   - Volumen "influctor_db_data" con nombre explícito
+#   - PostgreSQL NO expuesto al host (solo accesible internamente)
+#
+#  CÓMO USAR EN PORTAINER:
+#   1. Portainer → Stacks → Add stack → Upload / Web editor
+#   2. Pega este contenido o apunta al repositorio git
+#   3. En "Environment variables" define las variables de abajo
+#   4. Click "Deploy the stack"
+#
+#  VARIABLES REQUERIDAS (definir en Portainer → Stacks → Env):
+#   DB_PASSWORD      Contraseña para PostgreSQL (genera con: openssl rand -base64 24)
+#   NEXTAUTH_SECRET  Secreto de NextAuth (genera con: openssl rand -base64 32)
+#   APP_URL          URL pública, ej: https://app.tudominio.com
+#   CRON_SECRET      Secreto para los cron jobs (genera con: openssl rand -base64 24)
+#
+#  VARIABLES OPCIONALES:
+#   APP_PORT         Puerto en el host (default: 3010)
+# ══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Base de datos ─────────────────────────────────────────────
+  db:
+    container_name: influctor-db
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       influctor
+      POSTGRES_USER:     influctor
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - influctor_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U influctor -d influctor"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    networks:
+      - influctor_net
+    # Puerto 5432 NO expuesto al host — solo accesible dentro de influctor_net
+
+  # ── Aplicación Next.js ────────────────────────────────────────
+  app:
+    container_name: influctor-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: influctor-app:latest
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3010}:3000"
+    environment:
+      NODE_ENV:            production
+      DATABASE_URL:        postgresql://influctor:${DB_PASSWORD}@influctor-db:5432/influctor
+      NEXTAUTH_SECRET:     ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL:        ${APP_URL}
+      NEXT_PUBLIC_APP_URL: ${APP_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - influctor_net
+    # ── Si usas Traefik en este servidor, descomenta esto ─────────
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.docker.network=traefik_proxy"
+    #   - "traefik.http.routers.influctor.rule=Host(`tu-dominio.com`)"
+    #   - "traefik.http.routers.influctor.entrypoints=websecure"
+    #   - "traefik.http.routers.influctor.tls=true"
+    #   - "traefik.http.services.influctor.loadbalancer.server.port=3000"
+    # Y agrega la red de Traefik junto a influctor_net:
+    # networks:
+    #   - influctor_net
+    #   - traefik_proxy
+
+  # ── Cron jobs ─────────────────────────────────────────────────
+  cron:
+    container_name: influctor-cron
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    image: influctor-cron:latest
+    restart: unless-stopped
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+    depends_on:
+      - app
+    networks:
+      - influctor_net
+
+# ── Red interna aislada ───────────────────────────────────────
+networks:
+  influctor_net:
+    name: influctor_net
+    driver: bridge
+
+# ── Volumen de la base de datos ───────────────────────────────
+volumes:
+  influctor_db_data:
+    name: influctor_db_data
