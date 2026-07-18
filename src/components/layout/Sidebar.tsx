@@ -8,7 +8,7 @@ import {
   Settings, Zap, ChevronRight, Flame, DollarSign, Handshake,
   CalendarDays, BookOpen, Building2, Users2, FileText,
   Hash, SplitSquareVertical, RefreshCw, Search, TrendingUp,
-  Mail, Trophy, ClipboardList, CreditCard, ShoppingBag, ShieldCheck
+  Mail, Trophy, ClipboardList, CreditCard, ShoppingBag, ShieldCheck, Users
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -142,7 +142,10 @@ export default function Sidebar() {
         <NavItem href="/settings" label="Configuración" icon={Settings} isActive={pathname === '/settings'} />
         <NavItem href="/pricing" label="Planes & Precios" icon={CreditCard} isActive={pathname === '/pricing'} />
         {isAdmin && (
-          <NavItem href="/admin" label="Admin" icon={ShieldCheck} isActive={pathname.startsWith('/admin')} badge="ADMIN" badgeColor="text-red-300 bg-red-500/20 border-red-500/30" />
+          <>
+            <NavItem href="/admin" label="Admin" icon={ShieldCheck} isActive={pathname === '/admin'} badge="ADMIN" badgeColor="text-red-300 bg-red-500/20 border-red-500/30" />
+            <NavItem href="/admin/users" label="Usuarios" icon={Users} isActive={pathname.startsWith('/admin/users')} />
+          </>
         )}
       </nav>
 

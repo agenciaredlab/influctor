@@ -16,6 +16,7 @@ export async function getSessionUser() {
     where: { id: session.user.id },
   })
   if (!user) redirect('/login')
+  if (!user.active) redirect('/login')
   return user
 }
 

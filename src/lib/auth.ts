@@ -44,6 +44,7 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!user || !user.password) return null
+        if (!user.active) return null
 
         const valid = await bcrypt.compare(credentials.password, user.password)
         if (!valid) return null
@@ -73,10 +74,22 @@ export const authOptions: NextAuthOptions = {
         token.plan    = dbUser?.plan    ?? 'free'
         token.isAdmin = dbUser?.isAdmin ?? false
       }
-      // Allow client to call useSession().update({ plan }) after Stripe upgrade
-      if (trigger === 'update' && updSession?.plan) {
-        token.plan = updSession.plan
+
+      if (trigger === 'update') {
+        // Allow client to call useSession().update({ plan }) after Stripe upgrade
+        if (updSession?.plan) {
+          token.plan = updSession.plan
+        }
+        // isAdmin can change server-side (transfer-admin) without the browser
+        // knowing — always re-check on any explicit update() call so a stale
+        // tab doesn't keep showing admin UI after the role moved elsewhere.
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { isAdmin: true },
+        })
+        if (fresh) token.isAdmin = fresh.isAdmin
       }
+
       return token
     },
     // Expose id and plan on the session object
