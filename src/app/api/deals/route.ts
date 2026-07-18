@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
+import { getPlan } from '@/lib/plans'
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,6 +24,17 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const limit = getPlan(sessionUser.plan).limits.brandDeals
+    if (limit !== Infinity) {
+      const count = await prisma.brandDeal.count({ where: { userId: sessionUser.id } })
+      if (count >= limit) {
+        return NextResponse.json(
+          { error: `Tu plan permite hasta ${limit} brand deals. Actualiza tu plan para agregar más.` },
+          { status: 403 }
+        )
+      }
+    }
 
     const data = await req.json()
     const { brand, contact, email, phone, platform, type, stage, value,

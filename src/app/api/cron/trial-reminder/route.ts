@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const cronSecret = await getCronSecret()
   const auth = req.headers.get('authorization')
-  if (cronSecret && auth !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { syncInstagramAccount } from '@/lib/instagram-sync'
+import { getCronSecret } from '@/lib/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,11 +10,10 @@ export const dynamic = 'force-dynamic'
  * Syncs all active Instagram accounts that haven't been synced today.
  */
 export async function GET(req: NextRequest) {
-  if (process.env.CRON_SECRET) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const cronSecret = await getCronSecret()
+  const auth = req.headers.get('authorization')
+  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const today = new Date()

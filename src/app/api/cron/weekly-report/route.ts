@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendWeeklyReport } from '@/lib/email'
 import { buildReportData } from '../../email/weekly-report/route'
+import { getCronSecret } from '@/lib/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,8 +15,9 @@ export const dynamic = 'force-dynamic'
 // → every Monday at 09:00 UTC
 
 export async function GET(req: NextRequest) {
+  const cronSecret = await getCronSecret()
   const auth = req.headers.get('authorization')
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

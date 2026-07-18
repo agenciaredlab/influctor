@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
 import { getInstagramAppId, getInstagramAppSecret, getAppUrl } from '@/lib/config'
+import { getPlan } from '@/lib/plans'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 
@@ -147,6 +148,24 @@ export async function GET(req: NextRequest) {
           'No se encontró una cuenta de Instagram vinculada. Asegúrate de que tu cuenta sea tipo Empresa o Creador.'
         )}`
       )
+    }
+
+    // 4.5 Plan gate — block only if this would be a genuinely NEW connection
+    const limit = getPlan(sessionUser.plan).limits.socialAccounts
+    if (limit !== Infinity) {
+      const [activeCount, alreadyConnected] = await Promise.all([
+        prisma.socialAccount.count({ where: { userId: sessionUser.id, isActive: true } }),
+        prisma.socialAccount.findUnique({
+          where: { userId_platform_platformUserId: { userId: sessionUser.id, platform: 'instagram', platformUserId: igUserId } },
+        }),
+      ])
+      if (!alreadyConnected && activeCount >= limit) {
+        return NextResponse.redirect(
+          `${redirectBase}?instagram_error=${encodeURIComponent(
+            `Tu plan permite hasta ${limit} cuenta(s) de redes sociales conectada(s). Actualiza tu plan para conectar más.`
+          )}`
+        )
+      }
     }
 
     // 5. Get Instagram profile data

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { syncTikTokAccount } from '@/lib/tiktok-sync'
+import { getCronSecret } from '@/lib/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,11 +12,10 @@ export const dynamic = 'force-dynamic'
  * refresh token — syncTikTokAccount calls maybeRefreshToken automatically.
  */
 export async function GET(req: NextRequest) {
-  if (process.env.CRON_SECRET) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const cronSecret = await getCronSecret()
+  const auth = req.headers.get('authorization')
+  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const today = new Date()

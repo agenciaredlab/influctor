@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
+import { getCronSecret } from '@/lib/config'
+import { getPlan } from '@/lib/plans'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 
@@ -107,18 +109,36 @@ function detectMediaType(
 
 export async function POST(req: NextRequest) {
   try {
-    const sessionUser = await getApiSession()
-    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    // Two ways to call this route:
+    //  1. A logged-in user clicking "Publicar ahora" — normal session auth.
+    //  2. The publish-scheduled cron job, server-to-server — no browser
+    //     session exists, so it authenticates with the same secret that
+    //     already gates the cron trigger itself. Ownership is then resolved
+    //     from the post record, not from a session.
+    const cronSecretHeader     = req.headers.get('x-cron-secret')
+    const configuredCronSecret = await getCronSecret()
+    const isInternalCronCall   = !!configuredCronSecret && cronSecretHeader === configuredCronSecret
 
     const { postId } = await req.json()
-
     if (!postId) {
       return NextResponse.json({ error: 'postId requerido' }, { status: 400 })
     }
 
-    // 1. Get the ContentPost
-    const post = await prisma.contentPost.findUnique({ where: { id: postId } })
-    if (!post) return NextResponse.json({ error: 'Post no encontrado' }, { status: 404 })
+    let post: Awaited<ReturnType<typeof prisma.contentPost.findUnique>>
+    let actingUserId: string
+
+    if (isInternalCronCall) {
+      post = await prisma.contentPost.findUnique({ where: { id: postId } })
+      if (!post) return NextResponse.json({ error: 'Post no encontrado' }, { status: 404 })
+      actingUserId = post.userId
+    } else {
+      const sessionUser = await getApiSession()
+      if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      // Scoped to the caller's own posts — never trust a bare postId alone.
+      post = await prisma.contentPost.findFirst({ where: { id: postId, userId: sessionUser.id } })
+      if (!post) return NextResponse.json({ error: 'Post no encontrado' }, { status: 404 })
+      actingUserId = sessionUser.id
+    }
 
     if (post.status === 'published') {
       return NextResponse.json({ error: 'Este post ya fue publicado' }, { status: 400 })
@@ -131,9 +151,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Plan gate — Free plan does not include direct publishing.
+    const actingUser = await prisma.user.findUnique({ where: { id: actingUserId }, select: { plan: true } })
+    if (!getPlan(actingUser?.plan ?? 'free').limits.canPublish) {
+      return NextResponse.json(
+        { error: 'Tu plan no incluye publicación directa a Instagram. Actualiza tu plan para usar esta función.' },
+        { status: 403 }
+      )
+    }
+
     // 2. Get Instagram account
     const igAccount = await prisma.socialAccount.findFirst({
-      where: { userId: sessionUser.id, platform: 'instagram', isActive: true },
+      where: { userId: actingUserId, platform: 'instagram', isActive: true },
     })
 
     if (!igAccount) {

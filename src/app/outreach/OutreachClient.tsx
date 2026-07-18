@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Mail, Copy, CheckCheck, ChevronRight, Plus, Trash2, Clock, CheckCircle, XCircle, Send, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -150,11 +150,11 @@ const STATUS_OPTIONS = [
 interface OutreachEntry {
   id: string
   brand: string
-  contact: string
-  template: string
+  contact: string | null
+  template: string | null
   status: string
   sentAt: string
-  notes: string
+  notes: string | null
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -176,35 +176,82 @@ export default function OutreachClient() {
   const [activeTab, setActiveTab] = useState<'templates' | 'tracker'>('templates')
   const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0])
   const [filterCat, setFilterCat] = useState('Todos')
-  const [tracker, setTracker] = useState<OutreachEntry[]>([
-    { id: '1', brand: 'Nike Running', contact: 'partnerships@nike.com', template: 'first-contact', status: 'replied', sentAt: '2024-01-10', notes: 'Interesados, esperando propuesta' },
-    { id: '2', brand: 'Protein World', contact: 'influencers@pw.com', template: 'first-contact', status: 'pending', sentAt: '2024-01-12', notes: '' },
-    { id: '3', brand: 'Gymshark ES', contact: 'colabs@gymshark.com', template: 'follow-up', status: 'opened', sentAt: '2024-01-08', notes: 'Abrió el email 2 veces' },
-  ])
+
+  const [tracker, setTracker] = useState<OutreachEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showAddTracker, setShowAddTracker] = useState(false)
   const [newEntry, setNewEntry] = useState({ brand: '', contact: '', template: 'first-contact', notes: '' })
+  const [saving, setSaving] = useState(false)
+
+  const loadTracker = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/outreach')
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Error')
+      setTracker(json)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadTracker() }, [loadTracker])
 
   const categories = ['Todos', ...Array.from(new Set(TEMPLATES.map(t => t.category)))]
   const filteredTemplates = filterCat === 'Todos' ? TEMPLATES : TEMPLATES.filter(t => t.category === filterCat)
 
-  function addEntry() {
+  async function addEntry() {
     if (!newEntry.brand.trim()) return
-    setTracker(prev => [{
-      id: Date.now().toString(),
-      ...newEntry,
-      status: 'pending',
-      sentAt: new Date().toISOString().split('T')[0],
-    }, ...prev])
-    setNewEntry({ brand: '', contact: '', template: 'first-contact', notes: '' })
-    setShowAddTracker(false)
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newEntry),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Error')
+      setTracker(prev => [json, ...prev])
+      setNewEntry({ brand: '', contact: '', template: 'first-contact', notes: '' })
+      setShowAddTracker(false)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function updateStatus(id: string, status: string) {
-    setTracker(prev => prev.map(e => e.id === id ? { ...e, status } : e))
+  async function updateStatus(id: string, status: string) {
+    const prev = tracker
+    setTracker(list => list.map(e => e.id === id ? { ...e, status } : e))
+    try {
+      const res = await fetch(`/api/outreach/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Error')
+    } catch (e: any) {
+      setTracker(prev) // revert on failure
+      setError(e.message)
+    }
   }
 
-  function deleteEntry(id: string) {
-    setTracker(prev => prev.filter(e => e.id !== id))
+  async function deleteEntry(id: string) {
+    const prev = tracker
+    setTracker(list => list.filter(e => e.id !== id))
+    try {
+      const res = await fetch(`/api/outreach/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Error')
+    } catch (e: any) {
+      setTracker(prev) // revert on failure
+      setError(e.message)
+    }
   }
 
   return (
@@ -309,6 +356,12 @@ export default function OutreachClient() {
 
       {activeTab === 'tracker' && (
         <div className="space-y-4">
+          {error && (
+            <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="flex gap-4 text-sm">
               {STATUS_OPTIONS.map(s => (
@@ -327,17 +380,22 @@ export default function OutreachClient() {
           </div>
 
           <div className="space-y-2">
-            {tracker.map(entry => {
+            {loading && (
+              <p className="text-xs text-gray-600 text-center py-6">Cargando...</p>
+            )}
+            {!loading && tracker.length === 0 && (
+              <p className="text-xs text-gray-600 text-center py-6">Sin outreach registrado todavía</p>
+            )}
+            {!loading && tracker.map(entry => {
               const statusOpt = STATUS_OPTIONS.find(s => s.value === entry.status) || STATUS_OPTIONS[0]
-              const StatusIcon = statusOpt.icon
               return (
                 <div key={entry.id} className="bg-[#13131f] border border-[#1a1a2e] rounded-xl p-4 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-semibold text-white text-sm">{entry.brand}</span>
-                      <span className="text-[10px] text-gray-500">{entry.sentAt}</span>
+                      <span className="text-[10px] text-gray-500">{new Date(entry.sentAt).toISOString().split('T')[0]}</span>
                     </div>
-                    <div className="text-xs text-gray-500">{entry.contact}</div>
+                    {entry.contact && <div className="text-xs text-gray-500">{entry.contact}</div>}
                     {entry.notes && <div className="text-xs text-gray-400 mt-1 italic">{entry.notes}</div>}
                   </div>
                   <div className="flex items-center gap-2">
@@ -378,7 +436,9 @@ export default function OutreachClient() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setShowAddTracker(false)} className="flex-1 py-2 rounded-lg border border-[#1a1a2e] text-xs text-gray-400">Cancelar</button>
-                <button onClick={addEntry} className="flex-1 py-2 rounded-lg bg-violet-600 text-white text-xs font-medium">Agregar</button>
+                <button onClick={addEntry} disabled={saving} className="flex-1 py-2 rounded-lg bg-violet-600 text-white text-xs font-medium disabled:opacity-50">
+                  {saving ? 'Agregando...' : 'Agregar'}
+                </button>
               </div>
             </div>
           )}

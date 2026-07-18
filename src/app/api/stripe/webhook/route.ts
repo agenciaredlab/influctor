@@ -161,15 +161,17 @@ export async function POST(req: NextRequest) {
     if (!stripeKey) {
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 })
     }
+    if (!webhookSecret) {
+      console.error('[webhook] stripe_webhook_secret no configurado — rechazando el evento (no se procesa sin verificar la firma)')
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 503 })
+    }
 
     const stripe = new Stripe(stripeKey, { apiVersion: '2026-03-25.dahlia' })
     const body   = await req.text()
     const sig    = req.headers.get('stripe-signature')
 
-    if (!sig || !webhookSecret) {
-      console.warn('[webhook] No webhook secret — skipping signature verification (dev mode)')
-      try { await processEvent(JSON.parse(body), stripe) } catch {}
-      return NextResponse.json({ received: true })
+    if (!sig) {
+      return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 })
     }
 
     let event: Stripe.Event

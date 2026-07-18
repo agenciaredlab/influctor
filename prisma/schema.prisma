@@ -49,6 +49,7 @@ model User {
   contracts       Contract[]
   viralAnalyses   ViralAnalysis[]
   apiKeys         ApiKey[]
+  outreachEntries OutreachEntry[]
 }
 
 // ── NextAuth models ──────────────────────────────────────────────────────────
@@ -529,4 +530,24 @@ model ApiKey {
   revokedAt  DateTime?
 
   @@index([userId])
+}
+
+// ========================
+// OUTREACH TRACKER
+// ========================
+
+model OutreachEntry {
+  id        String   @id @default(cuid())
+  brand     String
+  contact   String?
+  template  String?  // id of the template used, if any (see OutreachClient TEMPLATES)
+  status    String   @default("pending") // pending | opened | replied | declined
+  sentAt    DateTime @default(now())
+  notes     String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
 import { getTikTokClientKey, getTikTokClientSecret, getAppUrl } from '@/lib/config'
+import { getPlan } from '@/lib/plans'
 
 const TIKTOK_API = 'https://open.tiktokapis.com/v2'
 
@@ -85,6 +86,24 @@ export async function GET(req: NextRequest) {
 
     const tokens  = await exchangeCode(code, appUrl)
     const profile = await fetchProfile(tokens.access_token)
+
+    // Plan gate — block only if this would be a genuinely NEW connection
+    const limit = getPlan(sessionUser.plan).limits.socialAccounts
+    if (limit !== Infinity) {
+      const [activeCount, alreadyConnected] = await Promise.all([
+        prisma.socialAccount.count({ where: { userId: sessionUser.id, isActive: true } }),
+        prisma.socialAccount.findUnique({
+          where: { userId_platform_platformUserId: { userId: sessionUser.id, platform: 'tiktok', platformUserId: profile.open_id } },
+        }),
+      ])
+      if (!alreadyConnected && activeCount >= limit) {
+        return NextResponse.redirect(
+          `${redirectBase}?tiktok_error=${encodeURIComponent(
+            `Tu plan permite hasta ${limit} cuenta(s) de redes sociales conectada(s). Actualiza tu plan para conectar más.`
+          )}`
+        )
+      }
+    }
 
     const tokenExpiresAt        = new Date(Date.now() + tokens.expires_in         * 1000)
     const refreshTokenExpiresAt = new Date(Date.now() + tokens.refresh_expires_in * 1000)

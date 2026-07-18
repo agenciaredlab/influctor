@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPublishFailedNotification } from '@/lib/email'
+import { getCronSecret, getAppUrl } from '@/lib/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,11 +27,10 @@ function nextRetryTime(scheduledAt: Date, attempts: number): Date {
 }
 
 export async function GET(req: NextRequest) {
-  if (process.env.CRON_SECRET) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const cronSecret = await getCronSecret()
+  const auth = req.headers.get('authorization')
+  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const now = new Date()
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ processed: 0, message: 'No posts due' })
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = (await getAppUrl()) || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
   const results: { postId: string; success: boolean; attempt: number; error?: string }[] = []
 
@@ -75,9 +75,12 @@ export async function GET(req: NextRequest) {
         ? `${appUrl}/api/social/tiktok/publish`
         : `${appUrl}/api/social/instagram/publish`
 
+      // Internal service-to-service call — no browser session exists here.
+      // The publish route accepts this trusted header as an alternative to a
+      // user session and resolves ownership from the post itself.
       const res = await fetch(endpoint, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Cron-Secret': cronSecret },
         body:    JSON.stringify({ postId: post.id }),
       })
       const data = await res.json()
