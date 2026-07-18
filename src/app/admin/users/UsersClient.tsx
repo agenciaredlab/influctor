@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Search, Key, UserX, UserCheck, Trash2, Crown, Eye, X, AlertCircle, CheckCircle } from 'lucide-react'
+import { Search, Key, UserX, UserCheck, Trash2, Crown, Eye, X, AlertCircle, CheckCircle, Terminal, Plus, Ban } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -19,6 +19,15 @@ interface UserRow {
   active: boolean
   createdAt: string
   aiUsageThisMonth: number
+}
+
+interface ApiKeyRow {
+  id: string
+  keyPrefix: string
+  label: string | null
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
 }
 
 export default function UsersClient({ currentAdminId }: { currentAdminId: string }) {
@@ -43,6 +52,13 @@ export default function UsersClient({ currentAdminId }: { currentAdminId: string
   const [transferConfirm, setTransferConfirm] = useState('')
   const [resetResult, setResetResult]       = useState<{ user: UserRow; password: string } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  // API keys modal
+  const [keysTarget, setKeysTarget] = useState<UserRow | null>(null)
+  const [keys, setKeys] = useState<ApiKeyRow[]>([])
+  const [keysLoading, setKeysLoading] = useState(false)
+  const [newKeyLabel, setNewKeyLabel] = useState('')
+  const [newKeyValue, setNewKeyValue] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -174,6 +190,58 @@ export default function UsersClient({ currentAdminId }: { currentAdminId: string
     }
   }
 
+  async function openKeys(u: UserRow) {
+    setKeysTarget(u)
+    setNewKeyValue(null)
+    setNewKeyLabel('')
+    setKeysLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/api-keys`)
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Error')
+      setKeys(json.keys)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setKeysLoading(false)
+    }
+  }
+
+  async function createKey() {
+    if (!keysTarget) return
+    setKeysLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${keysTarget.id}/api-keys`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newKeyLabel || undefined }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Error')
+      setNewKeyValue(json.key)
+      setNewKeyLabel('')
+      await openKeys(keysTarget)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setKeysLoading(false)
+    }
+  }
+
+  async function revokeKey(keyId: string) {
+    if (!keysTarget) return
+    setKeysLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users/${keysTarget.id}/api-keys/${keyId}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Error')
+      await openKeys(keysTarget)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setKeysLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {error && (
@@ -288,6 +356,14 @@ export default function UsersClient({ currentAdminId }: { currentAdminId: string
                         className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <Eye size={14} />
+                      </button>
+                      <button
+                        title="API Keys"
+                        disabled={busyId === u.id}
+                        onClick={() => openKeys(u)}
+                        className="p-1.5 rounded-lg text-gray-500 hover:text-cyan-400 hover:bg-white/5 disabled:opacity-30"
+                      >
+                        <Terminal size={14} />
                       </button>
                       <button
                         title="Resetear contraseña"
@@ -410,6 +486,71 @@ export default function UsersClient({ currentAdminId }: { currentAdminId: string
             </div>
             <div className="flex justify-end">
               <Button variant="secondary" onClick={() => setResetResult(null)} icon={<X size={14} />}>Cerrar</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* API Keys */}
+      <Modal
+        open={!!keysTarget}
+        onClose={() => { setKeysTarget(null); setKeys([]); setNewKeyValue(null); setNewKeyLabel('') }}
+        title="API Keys"
+        description={keysTarget ? `Acceso programático como ${keysTarget.name} (${keysTarget.isAdmin ? 'admin — acceso total' : 'usuario normal'})` : undefined}
+        size="lg"
+      >
+        {keysTarget && (
+          <div className="space-y-5">
+            {newKeyValue && (
+              <div className="space-y-2">
+                <p className="text-sm text-amber-300">Copiala ahora — no se vuelve a mostrar.</p>
+                <div className="flex items-center gap-2 bg-[#0a0a14] rounded-lg px-3 py-2.5 border border-amber-500/30">
+                  <code className="text-xs text-emerald-400 flex-1 select-all break-all">{newKeyValue}</code>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <input
+                value={newKeyLabel}
+                onChange={e => setNewKeyLabel(e.target.value)}
+                placeholder="Etiqueta (opcional, ej: pruebas de Claude)"
+                className="flex-1 bg-[#1a1a2e] border border-[#2a2a45] rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500"
+              />
+              <Button size="sm" onClick={createKey} disabled={keysLoading} icon={<Plus size={14} />}>
+                Generar
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              {keys.length === 0 && !keysLoading && (
+                <p className="text-xs text-gray-600 text-center py-4">Sin API keys todavía</p>
+              )}
+              {keys.map(k => (
+                <div key={k.id} className="flex items-center justify-between gap-3 bg-[#0f0f1a] border border-[#1e1e35] rounded-lg px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs text-gray-300">{k.keyPrefix}…</code>
+                      {k.label && <span className="text-xs text-gray-500 truncate">{k.label}</span>}
+                      {k.revokedAt && <Badge variant="danger" size="sm">Revocada</Badge>}
+                    </div>
+                    <div className="text-[10px] text-gray-600 mt-0.5">
+                      Creada {new Date(k.createdAt).toLocaleDateString('es')}
+                      {k.lastUsedAt && ` · último uso ${new Date(k.lastUsedAt).toLocaleDateString('es')}`}
+                    </div>
+                  </div>
+                  {!k.revokedAt && (
+                    <button
+                      title="Revocar"
+                      onClick={() => revokeKey(k.id)}
+                      disabled={keysLoading}
+                      className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-white/5 disabled:opacity-30 flex-shrink-0"
+                    >
+                      <Ban size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}

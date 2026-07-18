@@ -48,6 +48,7 @@ model User {
   marketplaceApplications MarketplaceApplication[]
   contracts       Contract[]
   viralAnalyses   ViralAnalysis[]
+  apiKeys         ApiKey[]
 }
 
 // ── NextAuth models ──────────────────────────────────────────────────────────
@@ -510,4 +511,22 @@ model ImpersonationLog {
 
   @@index([adminId, startedAt])
   @@index([targetUserId, startedAt])
+}
+
+// ========================
+// API KEYS (programmatic access, not a user session)
+// ========================
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  keyHash    String    @unique // SHA-256 of the raw key, raw value is shown once at creation and never stored
+  keyPrefix  String    // first chars of the raw key, safe to display, for identifying which key is which
+  label      String?
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
