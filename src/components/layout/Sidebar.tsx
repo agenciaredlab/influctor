@@ -2,13 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import {
   LayoutDashboard, Target, Megaphone, BarChart3, Sparkles,
   Settings, Zap, ChevronRight, Flame, DollarSign, Handshake,
   CalendarDays, BookOpen, Building2, Users2, FileText,
   Hash, SplitSquareVertical, RefreshCw, Search, TrendingUp,
-  Mail, Trophy, ClipboardList, CreditCard, ShoppingBag, ShieldCheck, Users
+  Mail, Trophy, ClipboardList, CreditCard, ShoppingBag, ShieldCheck, Users, LogOut
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Logo from '@/components/Logo'
@@ -155,14 +155,23 @@ export default function Sidebar() {
             <ChevronRight size={9} className="text-violet-500 group-hover:text-violet-300" />
           </Link>
         )}
-        <Link href="/settings" className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 transition-all">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">{initial}</div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-gray-200 truncate">{userName}</div>
-            <div className="text-[9px] text-gray-600 truncate">{planLabel}</div>
-          </div>
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-        </Link>
+        <div className="flex items-center gap-1 rounded-lg hover:bg-white/5 transition-all">
+          <Link href="/settings" className="flex items-center gap-2 px-2 py-2 flex-1 min-w-0">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">{initial}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-gray-200 truncate">{userName}</div>
+              <div className="text-[9px] text-gray-600 truncate">{planLabel}</div>
+            </div>
+          </Link>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            title="Cerrar sesión"
+            className="p-1.5 mr-1 rounded-md text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-all flex-shrink-0"
+          >
+            <LogOut size={13} />
+          </button>
+        </div>
       </div>
     </aside>
   )
