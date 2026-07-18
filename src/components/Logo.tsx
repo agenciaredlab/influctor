@@ -13,9 +13,9 @@ interface LogoProps {
 }
 
 const SIZES = {
-  sm: { box: 'w-7 h-7', icon: 13, text: 'text-sm', tagline: 'text-[9px]', img: 'h-9' },
-  md: { box: 'w-8 h-8', icon: 16, text: 'text-lg', tagline: 'text-[10px]', img: 'h-11' },
-  lg: { box: 'w-9 h-9', icon: 16, text: 'text-xl', tagline: 'text-[10px]', img: 'h-14' },
+  sm: { box: 'w-7 h-7', icon: 13, text: 'text-sm', tagline: 'text-[9px]', img: 'h-12' },
+  md: { box: 'w-8 h-8', icon: 16, text: 'text-lg', tagline: 'text-[10px]', img: 'h-16' },
+  lg: { box: 'w-9 h-9', icon: 16, text: 'text-xl', tagline: 'text-[10px]', img: 'h-24' },
 } as const
 
 /**

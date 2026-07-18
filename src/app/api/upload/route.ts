@@ -8,7 +8,7 @@ const ALLOWED_MIME: Record<StorageFolder, string[]> = {
   avatars:   ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   media:     ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'],
   documents: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
-  brands:    ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
+  brands:    ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'],
 }
 
 // 10 MB for images/brands, 50 MB for media, 20 MB for documents

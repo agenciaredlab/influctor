@@ -34,6 +34,11 @@ export default function SettingsClient({ initial }: Props) {
   const [logoError, setLogoError]     = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [faviconUrl, setFaviconUrl]           = useState(initial.branding_favicon_url ?? '')
+  const [uploadingFavicon, setUploadingFavicon] = useState(false)
+  const [faviconError, setFaviconError]       = useState<string | null>(null)
+  const faviconInputRef = useRef<HTMLInputElement>(null)
+
   function toggle(key: string) {
     setVisible(v => ({ ...v, [key]: !v[key] }))
   }
@@ -118,6 +123,64 @@ export default function SettingsClient({ initial }: Props) {
     }
   }
 
+  async function saveBrandingFaviconUrl(url: string) {
+    await fetch('/api/admin/settings', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ branding_favicon_url: url }),
+    })
+  }
+
+  async function handleFaviconFile(file: File) {
+    setFaviconError(null)
+    const ALLOWED = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/svg+xml']
+    if (!ALLOWED.includes(file.type)) {
+      setFaviconError('Formato no permitido. Usa PNG, ICO o SVG.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setFaviconError('El archivo supera los 2 MB.')
+      return
+    }
+
+    setUploadingFavicon(true)
+    try {
+      const presign = await fetch('/api/upload', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ folder: 'brands', filename: file.name, mime: file.type, size: file.size }),
+      })
+      if (!presign.ok) throw new Error((await presign.json()).error ?? 'Error al preparar la subida')
+      const { uploadUrl, publicUrl } = await presign.json()
+
+      const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+      if (!put.ok) throw new Error('Error al subir el archivo al storage')
+
+      await saveBrandingFaviconUrl(publicUrl)
+      setFaviconUrl(publicUrl)
+      setValues(v => ({ ...v, branding_favicon_url: publicUrl }))
+    } catch (e: any) {
+      setFaviconError(e.message ?? 'Error al subir el favicon')
+    } finally {
+      setUploadingFavicon(false)
+      if (faviconInputRef.current) faviconInputRef.current.value = ''
+    }
+  }
+
+  async function removeFavicon() {
+    setUploadingFavicon(true)
+    setFaviconError(null)
+    try {
+      await saveBrandingFaviconUrl('')
+      setFaviconUrl('')
+      setValues(v => ({ ...v, branding_favicon_url: '' }))
+    } catch {
+      setFaviconError('Error al quitar el favicon')
+    } finally {
+      setUploadingFavicon(false)
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -192,6 +255,69 @@ export default function SettingsClient({ initial }: Props) {
             </div>
             <p className="text-[11px] text-gray-600 mt-2 flex items-center gap-1.5">
               <ImageIcon className="w-3 h-3" /> JPG, PNG, WEBP o SVG · máximo 10 MB
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Favicon ── */}
+      <div className="bg-[#0f0f1a] border border-[#1e1e35] rounded-xl p-6">
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold text-white">Favicon</h2>
+          <p className="text-xs text-gray-500 mt-1">Ícono que aparece en la pestaña del navegador. Usa una imagen cuadrada — funciona mejor que el logo completo.</p>
+        </div>
+
+        {faviconError && (
+          <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm mb-4">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {faviconError}
+          </div>
+        )}
+
+        <div className="flex items-center gap-5">
+          <div className="w-12 h-12 rounded-lg bg-[#1a1a2e] border border-[#2a2a45] flex items-center justify-center overflow-hidden shrink-0">
+            {faviconUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={faviconUrl} alt="Favicon actual" className="max-w-full max-h-full object-contain" />
+            ) : (
+              <ImageIcon className="w-5 h-5 text-gray-600" />
+            )}
+          </div>
+
+          <div className="flex-1">
+            <input
+              ref={faviconInputRef}
+              type="file"
+              accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFaviconFile(f) }}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => faviconInputRef.current?.click()}
+                disabled={uploadingFavicon}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                {uploadingFavicon ? (
+                  <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Subiendo...</>
+                ) : (
+                  <><Upload className="w-4 h-4" /> {faviconUrl ? 'Cambiar favicon' : 'Subir favicon'}</>
+                )}
+              </button>
+              {faviconUrl && (
+                <button
+                  type="button"
+                  onClick={removeFavicon}
+                  disabled={uploadingFavicon}
+                  className="flex items-center gap-2 px-3 py-2 bg-[#1a1a2e] hover:bg-[#232340] disabled:opacity-50 text-gray-300 text-sm font-medium rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" /> Quitar
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-600 mt-2 flex items-center gap-1.5">
+              <ImageIcon className="w-3 h-3" /> PNG, ICO o SVG · máximo 2 MB
             </p>
           </div>
         </div>

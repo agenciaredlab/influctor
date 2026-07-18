@@ -104,6 +104,7 @@ export async function getStorageBucket()        { return getConfig('storage_buck
 export async function getStoragePublicUrl()     { return getConfig('storage_public_url',      'STORAGE_PUBLIC_URL') }
 export async function getStorageRegion()        { return getConfig('storage_region',          'STORAGE_REGION') }
 export async function getBrandingLogoUrl()      { return getConfig('branding_logo_url') }
+export async function getBrandingFaviconUrl()   { return getConfig('branding_favicon_url') }
 
 // All known config keys with metadata (for the admin UI)
 export const CONFIG_FIELDS = [
@@ -170,6 +171,7 @@ export const CONFIG_FIELDS = [
     group:  'Marca',
     fields: [
       { key: 'branding_logo_url', label: 'URL del Logo', placeholder: '(usa el uploader de arriba)', type: 'text' },
+      { key: 'branding_favicon_url', label: 'URL del Favicon', placeholder: '(usa el uploader de arriba)', type: 'text' },
     ],
   },
 ] as const
