@@ -29,6 +29,7 @@ model User {
   passwordResetToken      String?   @unique  // SHA-256 hash of the raw token
   passwordResetExpires    DateTime?
   isAdmin            Boolean  @default(false)
+  active             Boolean  @default(true)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   accounts    Account[]
@@ -494,4 +495,19 @@ model SystemConfig {
   key       String   @id
   value     String   // AES-256-GCM encrypted, format: iv:authTag:ciphertext (hex)
   updatedAt DateTime @updatedAt
+}
+
+// ========================
+// ADMIN AUDIT
+// ========================
+
+model ImpersonationLog {
+  id             String    @id @default(cuid())
+  adminId        String    // the admin who initiated impersonation
+  targetUserId   String    // the user being impersonated
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+
+  @@index([adminId, startedAt])
+  @@index([targetUserId, startedAt])
 }
