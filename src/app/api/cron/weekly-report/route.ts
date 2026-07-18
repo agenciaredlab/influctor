@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { sendWeeklyReport } from '@/lib/email'
 import { buildReportData } from '../../email/weekly-report/route'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/cron/weekly-report
 // Called weekly by Vercel Cron or external scheduler.
 // Protected by CRON_SECRET header.

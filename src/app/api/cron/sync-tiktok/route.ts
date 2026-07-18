@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { syncTikTokAccount } from '@/lib/tiktok-sync'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Called daily (7am UTC) by Vercel Cron.
  * Syncs all active TikTok accounts not yet synced today.

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { sendTrialEndingEmail } from '@/lib/email'
 import { getCronSecret } from '@/lib/config'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/cron/trial-reminder
 // Runs daily. Sends reminder emails to users whose trial ends in 3 days or 1 day.
 // vercel.json: { "path": "/api/cron/trial-reminder", "schedule": "0 10 * * *" }

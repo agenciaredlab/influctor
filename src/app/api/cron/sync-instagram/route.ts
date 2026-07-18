@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { syncInstagramAccount } from '@/lib/instagram-sync'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Called daily (6am UTC) by Vercel Cron.
  * Syncs all active Instagram accounts that haven't been synced today.

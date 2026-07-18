@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCronSecret } from '@/lib/config'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/cron/ai-reset
 // Runs on the 1st of each month at 00:05 UTC.
 // Resets aiUsageThisMonth for every user and updates aiUsageResetAt.
