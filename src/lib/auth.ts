@@ -80,6 +80,7 @@ export const authOptions: NextAuthOptions = {
         if (updSession?.plan) {
           token.plan = updSession.plan
         }
+
         // isAdmin can change server-side (transfer-admin) without the browser
         // knowing — always re-check on any explicit update() call so a stale
         // tab doesn't keep showing admin UI after the role moved elsewhere.
@@ -88,6 +89,50 @@ export const authOptions: NextAuthOptions = {
           select: { isAdmin: true },
         })
         if (fresh) token.isAdmin = fresh.isAdmin
+
+        // ── Impersonate: admin-only, one level deep, server-validated ──
+        // The client can call update() with any payload it wants, so the
+        // ONLY thing that matters is token.isAdmin as freshly re-checked
+        // above — never trust a flag from the browser.
+        if (updSession?.impersonateUserId && token.isAdmin && !token.impersonatorId) {
+          const target = await prisma.user.findUnique({
+            where:  { id: updSession.impersonateUserId },
+            select: { id: true, plan: true, isAdmin: true, active: true, name: true, email: true, image: true, avatar: true },
+          })
+          if (target && target.active && !target.isAdmin) {
+            const adminId = token.id as string
+            token.impersonatorId = adminId
+            token.id      = target.id
+            token.plan    = target.plan
+            token.isAdmin = false
+            token.name    = target.name
+            token.email   = target.email
+            token.picture = target.image ?? target.avatar ?? null
+            await prisma.impersonationLog.create({
+              data: { adminId, targetUserId: target.id },
+            })
+          }
+        } else if (updSession?.stopImpersonation && token.impersonatorId) {
+          const adminId  = token.impersonatorId as string
+          const targetId = token.id as string
+          await prisma.impersonationLog.updateMany({
+            where: { adminId, targetUserId: targetId, endedAt: null },
+            data:  { endedAt: new Date() },
+          })
+          const original = await prisma.user.findUnique({
+            where:  { id: adminId },
+            select: { id: true, plan: true, isAdmin: true, name: true, email: true, image: true, avatar: true },
+          })
+          if (original) {
+            token.id      = original.id
+            token.plan    = original.plan
+            token.isAdmin = original.isAdmin
+            token.name    = original.name
+            token.email   = original.email
+            token.picture = original.image ?? original.avatar ?? null
+          }
+          token.impersonatorId = undefined
+        }
       }
 
       return token
@@ -98,6 +143,10 @@ export const authOptions: NextAuthOptions = {
         session.user.id      = token.id      as string
         session.user.plan    = token.plan    as string
         session.user.isAdmin = token.isAdmin as boolean
+        session.user.impersonatorId = token.impersonatorId as string | undefined
+        session.user.name  = token.name  as string
+        session.user.email = token.email as string
+        session.user.image = token.picture as string | null | undefined
       }
       return session
     },

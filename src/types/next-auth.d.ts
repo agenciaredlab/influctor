@@ -6,6 +6,7 @@ declare module 'next-auth' {
       id:      string
       plan:    string
       isAdmin: boolean
+      impersonatorId?: string
     } & DefaultSession['user']
   }
   interface User {
@@ -19,5 +20,6 @@ declare module 'next-auth/jwt' {
     id:      string
     plan:    string
     isAdmin: boolean
+    impersonatorId?: string
   }
 }
