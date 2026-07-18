@@ -1,0 +1,84 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [claude/social-media-growth-platform-Lfvxl]
+  workflow_dispatch: {}
+
+jobs:
+  build-app:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/agenciaredlab/influctor-app:latest
+            ghcr.io/agenciaredlab/influctor-app:${{ github.sha }}
+
+  build-cron:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.cron
+          push: true
+          tags: |
+            ghcr.io/agenciaredlab/influctor-cron:latest
+            ghcr.io/agenciaredlab/influctor-cron:${{ github.sha }}
+
+  deploy:
+    needs: [build-app, build-cron]
+    runs-on: ubuntu-latest
+    env:
+      PORTAINER_URL: https://xport.agenciaredlab.com
+      ENDPOINT_ID: 1
+    steps:
+      - name: Update app service image
+        env:
+          PORTAINER_API_KEY: ${{ secrets.PORTAINER_API_KEY }}
+          SERVICE_ID: ybhtc4tbek5yoomi4jgf5njr3
+          NEW_IMAGE: ghcr.io/agenciaredlab/influctor-app:${{ github.sha }}
+        run: |
+          SPEC=$(curl -sf -H "X-API-Key: $PORTAINER_API_KEY" "$PORTAINER_URL/api/endpoints/$ENDPOINT_ID/docker/services/$SERVICE_ID")
+          VERSION=$(echo "$SPEC" | jq -r '.Version.Index')
+          NEW_SPEC=$(echo "$SPEC" | jq --arg img "$NEW_IMAGE" '.Spec | .TaskTemplate.ContainerSpec.Image = $img')
+          REG_AUTH=$(printf '{"username":"%s","password":"%s","serveraddress":"ghcr.io"}' "${{ github.repository_owner }}" "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)
+          curl -sf -X POST -H "X-API-Key: $PORTAINER_API_KEY" -H "X-Registry-Auth: $REG_AUTH" -H "Content-Type: application/json" \
+            "$PORTAINER_URL/api/endpoints/$ENDPOINT_ID/docker/services/$SERVICE_ID/update?version=$VERSION" -d "$NEW_SPEC"
+
+      - name: Update cron service image
+        env:
+          PORTAINER_API_KEY: ${{ secrets.PORTAINER_API_KEY }}
+          SERVICE_ID: b9iut0jr5km5gaof8zbnpbark
+          NEW_IMAGE: ghcr.io/agenciaredlab/influctor-cron:${{ github.sha }}
+        run: |
+          SPEC=$(curl -sf -H "X-API-Key: $PORTAINER_API_KEY" "$PORTAINER_URL/api/endpoints/$ENDPOINT_ID/docker/services/$SERVICE_ID")
+          VERSION=$(echo "$SPEC" | jq -r '.Version.Index')
+          NEW_SPEC=$(echo "$SPEC" | jq --arg img "$NEW_IMAGE" '.Spec | .TaskTemplate.ContainerSpec.Image = $img')
+          REG_AUTH=$(printf '{"username":"%s","password":"%s","serveraddress":"ghcr.io"}' "${{ github.repository_owner }}" "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)
+          curl -sf -X POST -H "X-API-Key: $PORTAINER_API_KEY" -H "X-Registry-Auth: $REG_AUTH" -H "Content-Type: application/json" \
+            "$PORTAINER_URL/api/endpoints/$ENDPOINT_ID/docker/services/$SERVICE_ID/update?version=$VERSION" -d "$NEW_SPEC"
