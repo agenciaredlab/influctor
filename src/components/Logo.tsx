@@ -13,9 +13,9 @@ interface LogoProps {
 }
 
 const SIZES = {
-  sm: { box: 'w-7 h-7', icon: 13, text: 'text-sm', tagline: 'text-[9px]', img: 'h-7' },
-  md: { box: 'w-8 h-8', icon: 16, text: 'text-lg', tagline: 'text-[10px]', img: 'h-8' },
-  lg: { box: 'w-9 h-9', icon: 16, text: 'text-xl', tagline: 'text-[10px]', img: 'h-9' },
+  sm: { box: 'w-7 h-7', icon: 13, text: 'text-sm', tagline: 'text-[9px]', img: 'h-9' },
+  md: { box: 'w-8 h-8', icon: 16, text: 'text-lg', tagline: 'text-[10px]', img: 'h-11' },
+  lg: { box: 'w-9 h-9', icon: 16, text: 'text-xl', tagline: 'text-[10px]', img: 'h-14' },
 } as const
 
 /**
@@ -24,19 +24,26 @@ const SIZES = {
  */
 export default function Logo({ size = 'sm', href, showTagline = true, className }: LogoProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     fetch('/api/branding')
       .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (!cancelled && data?.logoUrl) setLogoUrl(data.logoUrl) })
+      .then(data => { if (!cancelled) setLogoUrl(data?.logoUrl ?? null) })
       .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [])
 
   const s = SIZES[size]
 
-  const content = logoUrl ? (
+  // While we don't yet know if a custom logo is configured, render an
+  // invisible placeholder instead of the fallback icon — avoids a visible
+  // flash where the fallback briefly shows before the real logo swaps in.
+  const content = loading ? (
+    <div className={cn(s.img, 'invisible')}>influctor</div>
+  ) : logoUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={logoUrl} alt="Logo" className={cn(s.img, 'w-auto object-contain')} />
   ) : (
