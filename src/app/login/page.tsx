@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Zap, Eye, EyeOff, AlertCircle, Chrome } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, Chrome } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import Logo from '@/components/Logo'
 
 export default function LoginPage() {
   const router       = useRouter()
@@ -49,14 +50,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2.5 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-900/50">
-            <Zap size={16} className="text-white" />
-          </div>
-          <div>
-            <div className="text-xl font-bold text-white tracking-tight">influctor</div>
-            <div className="text-[10px] text-violet-400 -mt-0.5">Social Growth Platform</div>
-          </div>
+        <div className="flex items-center justify-center mb-8">
+          <Logo size="lg" />
         </div>
 
         {/* Card */}

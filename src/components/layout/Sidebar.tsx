@@ -11,6 +11,7 @@ import {
   Mail, Trophy, ClipboardList, CreditCard, ShoppingBag, ShieldCheck, Users
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import Logo from '@/components/Logo'
 
 const creatorNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -118,15 +119,7 @@ export default function Sidebar() {
     <aside className="fixed left-0 top-0 h-full w-56 bg-[#09090f] border-r border-[#1a1a2e] flex flex-col z-40 overflow-hidden">
       {/* Logo */}
       <div className="px-4 py-3 border-b border-[#1a1a2e] flex-shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-900/50 flex-shrink-0">
-            <Zap size={13} className="text-white" />
-          </div>
-          <div>
-            <span className="text-sm font-bold text-white tracking-tight">influctor</span>
-            <div className="text-[9px] text-violet-400 -mt-0.5">Social Growth Platform</div>
-          </div>
-        </Link>
+        <Logo size="sm" href="/dashboard" />
       </div>
 
       {/* Nav */}

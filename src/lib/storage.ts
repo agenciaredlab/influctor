@@ -1,22 +1,27 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { getStorageEndpoint, getStorageAccessKey, getStorageSecretKey, getStorageBucket, getStoragePublicUrl, getStorageRegion } from '@/lib/config'
 
 // MinIO / S3-compatible storage client
 // Works with MinIO (local), AWS S3, Supabase Storage, etc.
-// Configure via STORAGE_* env vars in .env.local
+// Configured via SystemConfig (DB-first, /admin/settings), STORAGE_* env vars as fallback.
 
-function getClient() {
-  const endpoint = process.env.STORAGE_ENDPOINT
-  const region   = process.env.STORAGE_REGION ?? 'us-east-1'
-  if (!endpoint || !process.env.STORAGE_ACCESS_KEY || !process.env.STORAGE_SECRET_KEY) {
-    throw new Error('Storage no configurado. Agrega STORAGE_ENDPOINT, STORAGE_ACCESS_KEY y STORAGE_SECRET_KEY en .env.local')
+async function getClient() {
+  const [endpoint, accessKey, secretKey, region] = await Promise.all([
+    getStorageEndpoint(),
+    getStorageAccessKey(),
+    getStorageSecretKey(),
+    getStorageRegion(),
+  ])
+  if (!endpoint || !accessKey || !secretKey) {
+    throw new Error('Storage no configurado. Configura Storage (S3/MinIO) en /admin/settings o STORAGE_* en .env.local')
   }
   return new S3Client({
     endpoint,
-    region,
+    region: region || 'us-east-1',
     credentials: {
-      accessKeyId:     process.env.STORAGE_ACCESS_KEY,
-      secretAccessKey: process.env.STORAGE_SECRET_KEY,
+      accessKeyId:     accessKey,
+      secretAccessKey: secretKey,
     },
     forcePathStyle: true, // required for MinIO
   })
@@ -33,9 +38,10 @@ export type StorageFolder = 'avatars' | 'documents' | 'media' | 'brands'
  * @param ttl    Seconds the URL is valid (default: 5 minutes)
  */
 export async function getPresignedPutUrl(key: string, mime: string, ttl = 300) {
-  const client = getClient()
+  const client = await getClient()
+  const bucket = (await getStorageBucket()) || 'influctor'
   const command = new PutObjectCommand({
-    Bucket:      process.env.STORAGE_BUCKET ?? 'influctor',
+    Bucket:      bucket,
     Key:         key,
     ContentType: mime,
   })
@@ -47,11 +53,10 @@ export async function getPresignedPutUrl(key: string, mime: string, ttl = 300) {
  * Returns the public URL of a stored object.
  * Assumes the bucket or the object has public read access.
  */
-export function getPublicUrl(key: string): string {
-  const pubUrl  = process.env.STORAGE_PUBLIC_URL
-  const ep      = process.env.STORAGE_ENDPOINT
-  const bkt     = process.env.STORAGE_BUCKET ?? 'influctor'
-  const base    = (pubUrl ?? `${ep}/${bkt}`).replace(/\/$/, '')
+export async function getPublicUrl(key: string): Promise<string> {
+  const [pubUrl, ep, bkt] = await Promise.all([getStoragePublicUrl(), getStorageEndpoint(), getStorageBucket()])
+  const bucket = bkt || 'influctor'
+  const base   = (pubUrl || `${ep}/${bucket}`).replace(/\/$/, '')
   return `${base}/${key}`
 }
 
@@ -59,8 +64,9 @@ export function getPublicUrl(key: string): string {
  * Deletes an object from the bucket.
  */
 export async function deleteObject(key: string) {
-  const client = getClient()
-  await client.send(new DeleteObjectCommand({ Bucket: process.env.STORAGE_BUCKET ?? 'influctor', Key: key }))
+  const client = await getClient()
+  const bucket = (await getStorageBucket()) || 'influctor'
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }))
 }
 
 /**

@@ -9,7 +9,7 @@ vi.mock('@/lib/session', () => ({
 vi.mock('@/lib/storage', () => ({
   buildKey: vi.fn().mockReturnValue('avatars/user_1_1737000000000.jpg'),
   getPresignedPutUrl: vi.fn().mockResolvedValue('https://minio.example.com/presigned-url'),
-  getPublicUrl: vi.fn().mockReturnValue('https://cdn.example.com/avatars/user_1_1737000000000.jpg'),
+  getPublicUrl: vi.fn().mockResolvedValue('https://cdn.example.com/avatars/user_1_1737000000000.jpg'),
 }))
 
 import { getApiSession } from '@/lib/session'
@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(buildKey).mockReturnValue(MOCK_KEY)
   vi.mocked(getPresignedPutUrl).mockResolvedValue(MOCK_UPLOAD)
-  vi.mocked(getPublicUrl).mockReturnValue(MOCK_PUBLIC)
+  vi.mocked(getPublicUrl).mockResolvedValue(MOCK_PUBLIC)
 })
 
 describe('POST /api/upload', () => {

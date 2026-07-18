@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Zap, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react'
+import Logo from '@/components/Logo'
 
 export default function ForgotPasswordPage() {
   const [email,     setEmail]   = useState('')
@@ -35,14 +36,8 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2.5 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-900/50">
-            <Zap size={16} className="text-white" />
-          </div>
-          <div>
-            <div className="text-xl font-bold text-white tracking-tight">influctor</div>
-            <div className="text-[10px] text-violet-400 -mt-0.5">Social Growth Platform</div>
-          </div>
+        <div className="flex items-center justify-center mb-8">
+          <Logo size="lg" />
         </div>
 
         <div className="bg-[#13131f] border border-[#1a1a2e] rounded-2xl p-6">

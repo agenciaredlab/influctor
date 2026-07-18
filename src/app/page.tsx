@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Zap, Target, BarChart3, Megaphone, Sparkles, ArrowRight, TrendingUp, Users, DollarSign } from 'lucide-react'
+import { Target, BarChart3, Megaphone, Sparkles, ArrowRight, TrendingUp, Users, DollarSign } from 'lucide-react'
+import Logo from '@/components/Logo'
 
 export default function HomePage() {
   return (
@@ -12,12 +13,7 @@ export default function HomePage() {
 
       {/* Nav */}
       <nav className="relative px-8 py-5 flex items-center justify-between border-b border-[#1a1a2e]/60">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Zap size={16} className="text-white" />
-          </div>
-          <span className="text-lg font-bold text-white">influctor</span>
-        </div>
+        <Logo size="md" showTagline={false} />
         <Link
           href="/dashboard"
           className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors"

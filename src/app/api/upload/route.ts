@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   try {
     const key       = buildKey(folder, sessionUser.id, filename)
     const uploadUrl = await getPresignedPutUrl(key, mime)
-    const pub       = getPublicUrl(key)
+    const pub       = await getPublicUrl(key)
 
     return NextResponse.json({ key, uploadUrl, publicUrl: pub })
   } catch (err: any) {

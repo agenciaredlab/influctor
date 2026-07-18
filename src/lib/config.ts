@@ -97,6 +97,13 @@ export async function getTikTokClientKey()      { return getConfig('tiktok_clien
 export async function getTikTokClientSecret()   { return getConfig('tiktok_client_secret',    'TIKTOK_CLIENT_SECRET') }
 export async function getCronSecret()           { return getConfig('cron_secret',             'CRON_SECRET') }
 export async function getAppUrl()               { return getConfig('app_url',                 'NEXT_PUBLIC_APP_URL') }
+export async function getStorageEndpoint()      { return getConfig('storage_endpoint',        'STORAGE_ENDPOINT') }
+export async function getStorageAccessKey()     { return getConfig('storage_access_key',      'STORAGE_ACCESS_KEY') }
+export async function getStorageSecretKey()     { return getConfig('storage_secret_key',      'STORAGE_SECRET_KEY') }
+export async function getStorageBucket()        { return getConfig('storage_bucket',          'STORAGE_BUCKET') }
+export async function getStoragePublicUrl()     { return getConfig('storage_public_url',      'STORAGE_PUBLIC_URL') }
+export async function getStorageRegion()        { return getConfig('storage_region',          'STORAGE_REGION') }
+export async function getBrandingLogoUrl()      { return getConfig('branding_logo_url') }
 
 // All known config keys with metadata (for the admin UI)
 export const CONFIG_FIELDS = [
@@ -146,6 +153,23 @@ export const CONFIG_FIELDS = [
     fields: [
       { key: 'app_url',     label: 'URL Pública',    placeholder: 'https://tudominio.com', type: 'text' },
       { key: 'cron_secret', label: 'Cron Secret',    placeholder: 'secreto-largo-aleatorio', type: 'password' },
+    ],
+  },
+  {
+    group:  'Storage (S3/MinIO)',
+    fields: [
+      { key: 'storage_endpoint',   label: 'Endpoint',       placeholder: 'https://cdn.tudominio.com', type: 'text' },
+      { key: 'storage_access_key', label: 'Access Key',     placeholder: 'AKIA...', type: 'password' },
+      { key: 'storage_secret_key', label: 'Secret Key',     placeholder: '••••••••', type: 'password' },
+      { key: 'storage_bucket',     label: 'Bucket',         placeholder: 'influctor', type: 'text' },
+      { key: 'storage_public_url', label: 'URL Pública',    placeholder: 'https://cdn.tudominio.com/bucket', type: 'text' },
+      { key: 'storage_region',     label: 'Región',         placeholder: 'us-east-1', type: 'text' },
+    ],
+  },
+  {
+    group:  'Marca',
+    fields: [
+      { key: 'branding_logo_url', label: 'URL del Logo', placeholder: '(usa el uploader de arriba)', type: 'text' },
     ],
   },
 ] as const
