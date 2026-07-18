@@ -1,7 +1,8 @@
 import { MetadataRoute } from 'next'
+import { getAppUrl } from '@/lib/config'
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const base = process.env.NEXTAUTH_URL ?? 'https://influctor.app'
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const base = (await getAppUrl()) || 'https://influctor.agenciaredlab.com'
 
   return [
     {

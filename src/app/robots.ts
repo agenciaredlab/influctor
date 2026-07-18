@@ -1,7 +1,8 @@
 import { MetadataRoute } from 'next'
+import { getAppUrl } from '@/lib/config'
 
-export default function robots(): MetadataRoute.Robots {
-  const base = process.env.NEXTAUTH_URL ?? 'https://influctor.app'
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const base = (await getAppUrl()) || 'https://influctor.agenciaredlab.com'
   return {
     rules: [
       {

@@ -12,14 +12,8 @@ export default function HomePage() {
       </div>
 
       {/* Nav */}
-      <nav className="relative px-8 py-5 flex items-center justify-between border-b border-[#1a1a2e]/60">
-        <Logo size="md" showTagline={false} />
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          Ir al Dashboard <ArrowRight size={14} />
-        </Link>
+      <nav className="relative px-8 py-6 flex items-center justify-center border-b border-[#1a1a2e]/60">
+        <Logo size="lg" />
       </nav>
 
       {/* Hero */}
@@ -110,6 +104,14 @@ export default function HomePage() {
           </div>
         ))}
       </div>
+
+      {/* Footer */}
+      <footer className="relative border-t border-[#1a1a2e]/60 px-8 py-6 text-center">
+        <p className="text-xs text-gray-600">
+          Desarrollado por <span className="text-gray-400">Agencia RedLab</span> y{' '}
+          <span className="text-gray-400">Juan Camilo Medina Godoy</span>
+        </p>
+      </footer>
     </div>
   )
 }
