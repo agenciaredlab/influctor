@@ -20,7 +20,18 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   `repurpose`, esta ruta llama a Anthropic directo con solo un rate-limit de 5 req/min, sin
   chequear `lib/plans.ts` ni registrar en `AiUsage`. Un usuario Free puede gastar Anthropic sin
   límite todo el mes por acá — fuga de ingresos directa contra la promesa del plan Free
-  (10 generaciones/mes). Estado: **en progreso** (2026-09-22, despachado a influctor-backend-builder).
+  (10 generaciones/mes). Estado: **bloqueado** (2026-09-23) — el fix está implementado en
+  `claude/auto-work` (commit `4969281`: gate de `aiGenerationsPerMonth` antes de Anthropic + registro
+  en `AiUsage`/`aiUsageThisMonth`, 6 tests nuevos, tsc limpio) y `influctor-code-auditor` lo aprobó sin
+  críticos, pero NO se promovió: `influctor-release-guardian` no pudo levantar la instancia local porque
+  el Windows de pruebas intercepta TLS (Avast HTTPS scanning) y todo `apk add` dentro de Docker falla con
+  `certificate verify failed` (reproducido con `docker run --rm alpine:3.20 apk update`, sin Influctor de
+  por medio). Destrabar requiere que Camilo excluya Docker Desktop / WSL del escaneo HTTPS de Avast (o lo
+  desactive durante el build); después re-correr guardian + flow-tester y promover.
+  Hallazgos menores del auditor (preexistentes, idénticos en `ab-test` y `ai/generate`, no bloquean): si
+  el `User` no existe en BD con JWT válido se saltan gate y tracking; el gate no contempla
+  `aiUsageResetAt` de un mes anterior (bloquea hasta que corre `cron/ai-reset`); carrera gate/incremento
+  acotada por el rate-limit.
 
 - [ ] **Reporte semanal no se envía si Resend/SMTP se configuró solo desde `/admin/settings`**
   `src/app/api/cron/weekly-report/route.ts:24` y `src/app/api/email/weekly-report/route.ts:143`
@@ -67,6 +78,15 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   antes de que un builder toque código (¿qué puede ver/hacer un miembro invitado? ¿comparte plan y
   límites con el dueño? ¿tiene su propio login?). Estado: **bloqueado — necesita decisión de
   producto de Camilo antes de implementar**.
+
+- [ ] **12 archivos de test fallando en la suite completa (68/590 tests)**
+  Detectado 2026-09-23 al correr `npx vitest run` sobre `claude/auto-work` (estos archivos tienen el
+  mismo código que la rama default, así que las fallas ya existían): `auth/register`, `content`,
+  `cron/publish-scheduled`, `cron/sync-instagram`, `cron/sync-tiktok`, `cron/weekly-report`, `deals`,
+  `email/weekly-report`, `social/instagram/publish` (espera 200/422, recibe 500), `stripe/webhook`,
+  `lib/email`, `lib/storage`. Hay que distinguir regresión real de mocks desactualizados (probablemente
+  por la migración DB-first a `lib/config.ts`). Contradice la nota de "Ya verificado" que solo cubría
+  tsc/build, no vitest. Estado: **pendiente**.
 
 ## 🟢 Menor / cosmético
 
