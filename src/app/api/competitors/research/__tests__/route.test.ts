@@ -12,15 +12,25 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 vi.mock('@/lib/session', () => ({ getApiSession: vi.fn() }))
 
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    user:    { findUnique: vi.fn(), update: vi.fn() },
+    aiUsage: { create: vi.fn() },
+    $transaction: vi.fn(),
+  },
+}))
+
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit:    vi.fn().mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 }),
   rateLimitKey: vi.fn().mockReturnValue('key'),
 }))
 
 import { getApiSession } from '@/lib/session'
+import { prisma } from '@/lib/prisma'
 import { rateLimit } from '@/lib/rate-limit'
 
 const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
+const mockUser = { id: 'user_1', plan: 'free', aiUsageThisMonth: 0, aiUsageResetAt: new Date() }
 
 const AI_RESULT = {
   found: true,
@@ -44,6 +54,8 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(rateLimit).mockResolvedValue({ ok: true, remaining: 4, retryAfter: 0 })
   vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+  vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser as any)
+  vi.mocked(prisma.$transaction).mockResolvedValue([] as any)
   mockCreate.mockResolvedValue({
     content: [{ type: 'text', text: JSON.stringify(AI_RESULT) }],
   })
@@ -108,5 +120,67 @@ describe('POST /api/competitors/research', () => {
     })
     const res = await POST(makeReq({ query: 'Nike' }))
     expect(res.status).toBe(500)
+  })
+})
+
+describe('POST /api/competitors/research — plan AI limit gating', () => {
+  it('returns 429 with limitReached when free plan is at its limit, and does not call Anthropic', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...mockUser, plan: 'free', aiUsageThisMonth: 5,
+    } as any)
+
+    const res = await POST(makeReq({ query: 'Nike' }))
+    expect(res.status).toBe(429)
+    const body = await res.json()
+    expect(body.limitReached).toBe(true)
+    expect(body.plan).toBe('free')
+    expect(mockCreate).not.toHaveBeenCalled()
+  })
+
+  it('allows the request and tracks usage when the user is under the limit', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...mockUser, plan: 'free', aiUsageThisMonth: 2,
+    } as any)
+
+    const res = await POST(makeReq({ query: 'Nike' }))
+    expect(res.status).toBe(200)
+    expect(mockCreate).toHaveBeenCalled()
+    expect(prisma.$transaction).toHaveBeenCalled()
+  })
+
+  it('tracks usage even when the brand is not found (found: false still cost an AI call)', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...mockUser, plan: 'free', aiUsageThisMonth: 2,
+    } as any)
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: JSON.stringify({ found: false }) }],
+    })
+
+    const res = await POST(makeReq({ query: 'UnknownBrandXYZ123' }))
+    expect(res.status).toBe(200)
+    expect(prisma.$transaction).toHaveBeenCalled()
+  })
+
+  it('does not track usage when the AI response is unparseable', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...mockUser, plan: 'free', aiUsageThisMonth: 2,
+    } as any)
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'not json at all' }],
+    })
+
+    const res = await POST(makeReq({ query: 'Nike' }))
+    expect(res.status).toBe(500)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('pro plan (unlimited) bypasses the limit despite high usage', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      ...mockUser, plan: 'pro', aiUsageThisMonth: 999999,
+    } as any)
+
+    const res = await POST(makeReq({ query: 'Nike' }))
+    expect(res.status).toBe(200)
+    expect(mockCreate).toHaveBeenCalled()
   })
 })

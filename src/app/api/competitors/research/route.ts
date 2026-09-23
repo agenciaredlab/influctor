@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
 import Anthropic from '@anthropic-ai/sdk'
+import { getPlan } from '@/lib/plans'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
@@ -45,6 +47,20 @@ export async function POST(req: NextRequest) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
+
+  // Check plan limits
+  const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
+  if (user) {
+    const plan = getPlan(user.plan)
+    const limit = plan.limits.aiGenerationsPerMonth
+    if (limit !== Infinity && user.aiUsageThisMonth >= limit) {
+      return NextResponse.json({
+        error: `Alcanzaste el límite de ${limit} generaciones del plan ${plan.name}.`,
+        limitReached: true,
+        plan: user.plan,
+      }, { status: 429 })
+    }
+  }
 
   const { query } = await req.json()
   if (!query?.trim()) return NextResponse.json({ error: 'query requerido' }, { status: 400 })
@@ -100,8 +116,38 @@ Rules:
     const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '')
     aiResult = JSON.parse(clean)
   } catch {
+    // Unparseable AI response — not counted as usage (same as ab-test, which
+    // returns before its tracking block in this case).
     return NextResponse.json({ error: 'No se pudo parsear la respuesta de IA', raw }, { status: 500 })
   }
+
+  // Track AI usage — a successfully parsed Anthropic call spent a generation,
+  // regardless of whether the brand was found (found: false still cost the call).
+  try {
+    if (user) {
+      const now = new Date()
+      const resetAt = user.aiUsageResetAt
+      const needsReset = !resetAt || resetAt.getMonth() !== now.getMonth() || resetAt.getFullYear() !== now.getFullYear()
+      await prisma.$transaction([
+        prisma.aiUsage.create({
+          data: {
+            userId: user.id,
+            type: 'competitor_research',
+            prompt: query.slice(0, 500),
+            result: raw.slice(0, 1000),
+            platform: null,
+          },
+        }),
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            aiUsageThisMonth: needsReset ? 1 : { increment: 1 },
+            aiUsageResetAt: needsReset ? now : undefined,
+          },
+        }),
+      ])
+    }
+  } catch { /* non-blocking */ }
 
   if (!aiResult.found) {
     return NextResponse.json({ found: false, query })
