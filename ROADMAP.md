@@ -20,7 +20,7 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   `repurpose`, esta ruta llama a Anthropic directo con solo un rate-limit de 5 req/min, sin
   chequear `lib/plans.ts` ni registrar en `AiUsage`. Un usuario Free puede gastar Anthropic sin
   límite todo el mes por acá — fuga de ingresos directa contra la promesa del plan Free
-  (10 generaciones/mes). Estado: **pendiente**.
+  (10 generaciones/mes). Estado: **en progreso** (2026-09-22, despachado a influctor-backend-builder).
 
 - [ ] **Reporte semanal no se envía si Resend/SMTP se configuró solo desde `/admin/settings`**
   `src/app/api/cron/weekly-report/route.ts:24` y `src/app/api/email/weekly-report/route.ts:143`
