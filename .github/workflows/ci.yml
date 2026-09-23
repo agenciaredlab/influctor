@@ -52,6 +52,7 @@ jobs:
 
   deploy:
     needs: [build-app, build-cron]
+    if: github.ref == 'refs/heads/claude/social-media-growth-platform-Lfvxl'
     runs-on: ubuntu-latest
     env:
       PORTAINER_URL: https://xport.agenciaredlab.com
