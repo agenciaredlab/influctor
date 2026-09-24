@@ -1,9 +1,20 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('resend', () => ({
   Resend: function MockResend() {
     return { emails: { send: vi.fn().mockResolvedValue({ id: 'mock-id' }) } }
   },
+}))
+
+vi.mock('@/lib/config', () => ({
+  getResendKey:  vi.fn().mockResolvedValue(''),
+  getAppUrl:     vi.fn().mockResolvedValue(''),
+  getFromEmail:  vi.fn().mockResolvedValue(''),
+  getSmtpHost:   vi.fn().mockResolvedValue(''),
+  getSmtpPort:   vi.fn().mockResolvedValue(''),
+  getSmtpUser:   vi.fn().mockResolvedValue(''),
+  getSmtpPass:   vi.fn().mockResolvedValue(''),
+  getSmtpSecure: vi.fn().mockResolvedValue(''),
 }))
 
 import {
@@ -12,8 +23,15 @@ import {
   buildAiLimitWarningHtml,
   buildPublishFailedHtml,
   buildWeeklyReportHtml,
+  isEmailConfigured,
   type WeeklyReportData,
 } from '../email'
+import {
+  getResendKey,
+  getSmtpHost,
+  getSmtpUser,
+  getSmtpPass,
+} from '@/lib/config'
 
 // ─── Deal stage notification ─────────────────────────────────────────────────
 
@@ -315,5 +333,62 @@ describe('buildWeeklyReportHtml', () => {
   it('handles empty topContent gracefully', () => {
     const html = buildWeeklyReportHtml({ ...WEEKLY_BASE, topContent: [] })
     expect(html).toContain('<!DOCTYPE html>')
+  })
+})
+
+// ─── isEmailConfigured (DB-first transport check) ─────────────────────────────
+
+describe('isEmailConfigured', () => {
+  const ORIGINAL_ENV = { ...process.env }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    delete process.env.RESEND_API_KEY
+    delete process.env.SMTP_HOST
+    delete process.env.SMTP_USER
+    delete process.env.SMTP_PASS
+    vi.mocked(getResendKey).mockResolvedValue('')
+    vi.mocked(getSmtpHost).mockResolvedValue('')
+    vi.mocked(getSmtpUser).mockResolvedValue('')
+    vi.mocked(getSmtpPass).mockResolvedValue('')
+  })
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV }
+  })
+
+  it('returns false when nothing is configured (no DB, no env)', async () => {
+    expect(await isEmailConfigured()).toBe(false)
+  })
+
+  it('returns true when only SMTP is configured via DB (no RESEND_API_KEY in env)', async () => {
+    vi.mocked(getSmtpHost).mockResolvedValue('smtp.example.com')
+    vi.mocked(getSmtpUser).mockResolvedValue('user@example.com')
+    vi.mocked(getSmtpPass).mockResolvedValue('secret')
+    expect(await isEmailConfigured()).toBe(true)
+  })
+
+  it('returns true when only a Resend key is configured via DB (no env)', async () => {
+    vi.mocked(getResendKey).mockResolvedValue('re_db_key')
+    expect(await isEmailConfigured()).toBe(true)
+  })
+
+  it('falls back to RESEND_API_KEY env var when DB has no key', async () => {
+    process.env.RESEND_API_KEY = 're_env_key'
+    expect(await isEmailConfigured()).toBe(true)
+  })
+
+  it('requires all three SMTP fields — partial config is not enough', async () => {
+    vi.mocked(getSmtpHost).mockResolvedValue('smtp.example.com')
+    // user and pass left empty
+    expect(await isEmailConfigured()).toBe(false)
+  })
+
+  it('prefers SMTP over Resend when both are configured (matches sendMail rule)', async () => {
+    vi.mocked(getSmtpHost).mockResolvedValue('smtp.example.com')
+    vi.mocked(getSmtpUser).mockResolvedValue('user@example.com')
+    vi.mocked(getSmtpPass).mockResolvedValue('secret')
+    vi.mocked(getResendKey).mockResolvedValue('re_db_key')
+    expect(await isEmailConfigured()).toBe(true)
   })
 })

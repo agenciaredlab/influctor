@@ -16,7 +16,29 @@ interface MailPayload {
   html:    string
 }
 
-async function sendMail(payload: MailPayload): Promise<void> {
+// ── Shared transport resolution (DB-first, env fallback) ──────────────────────
+// Single source of truth used by both sendMail() and isEmailConfigured(), so
+// the two can never disagree about whether email is configured.
+
+interface SmtpTransportConfig {
+  kind:   'smtp'
+  from:   string
+  host:   string
+  port:   number
+  secure: boolean
+  user:   string
+  pass:   string
+}
+
+interface ResendTransportConfig {
+  kind: 'resend'
+  from: string
+  key:  string
+}
+
+type TransportConfig = SmtpTransportConfig | ResendTransportConfig | { kind: 'none'; from: string }
+
+async function resolveTransport(): Promise<TransportConfig> {
   const [smtpHost, smtpUser, smtpPass, smtpPort, smtpSecure, fromCfg, resendKey] = await Promise.all([
     getSmtpHost(), getSmtpUser(), getSmtpPass(), getSmtpPort(), getSmtpSecure(),
     getFromEmail(), getResendKey(),
@@ -25,27 +47,51 @@ async function sendMail(payload: MailPayload): Promise<void> {
   const from = fromCfg || process.env.EMAIL_FROM || 'Influctor <onboarding@resend.dev>'
 
   if (smtpHost && smtpUser && smtpPass) {
-    // ── SMTP transport ────────────────────────────────────────────
     const port   = Number(smtpPort ?? 587)
     const secure = smtpSecure === 'true' || port === 465
+    return { kind: 'smtp', from, host: smtpHost, port, secure, user: smtpUser, pass: smtpPass }
+  }
 
+  const key = resendKey || process.env.RESEND_API_KEY
+  if (key) return { kind: 'resend', from, key }
+
+  return { kind: 'none', from }
+}
+
+/**
+ * True when an email transport (SMTP or Resend) is configured, checking the
+ * DB-first config (Admin → Configuración de servicios) before env vars.
+ * Uses the exact same rule as sendMail() — kept in sync via resolveTransport().
+ */
+export async function isEmailConfigured(): Promise<boolean> {
+  const transport = await resolveTransport()
+  return transport.kind !== 'none'
+}
+
+async function sendMail(payload: MailPayload): Promise<void> {
+  const transport = await resolveTransport()
+
+  if (transport.kind === 'smtp') {
+    // ── SMTP transport ────────────────────────────────────────────
     const transporter = nodemailer.createTransport({
-      host:   smtpHost,
-      port,
-      secure,
-      auth:   { user: smtpUser, pass: smtpPass },
+      host:   transport.host,
+      port:   transport.port,
+      secure: transport.secure,
+      auth:   { user: transport.user, pass: transport.pass },
     })
 
-    await transporter.sendMail({ from, to: payload.to, subject: payload.subject, html: payload.html })
+    await transporter.sendMail({ from: transport.from, to: payload.to, subject: payload.subject, html: payload.html })
     return
   }
 
-  // ── Resend fallback ───────────────────────────────────────────
-  const key = resendKey || process.env.RESEND_API_KEY
-  if (!key) throw new Error('No email transport configured. Set SMTP or Resend credentials in Admin → Configuración de servicios.')
+  if (transport.kind === 'resend') {
+    // ── Resend fallback ───────────────────────────────────────────
+    const client = new Resend(transport.key)
+    await client.emails.send({ from: transport.from, to: payload.to, subject: payload.subject, html: payload.html })
+    return
+  }
 
-  const client = new Resend(key)
-  await client.emails.send({ from, to: payload.to, subject: payload.subject, html: payload.html })
+  throw new Error('No email transport configured. Set SMTP or Resend credentials in Admin → Configuración de servicios.')
 }
 
 // ─── Data types ───────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendWeeklyReport, type WeeklyReportData } from '@/lib/email'
+import { sendWeeklyReport, isEmailConfigured, type WeeklyReportData } from '@/lib/email'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
 
@@ -140,16 +140,16 @@ export async function buildReportData(userId: string): Promise<WeeklyReportData>
 
 // POST /api/email/weekly-report — send on-demand (from UI button)
 export async function POST(_req: NextRequest) {
-  if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json(
-      { error: 'RESEND_API_KEY no configurada en .env.local' },
-      { status: 503 }
-    )
-  }
-
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    if (!(await isEmailConfigured())) {
+      return NextResponse.json(
+        { error: 'Ningún transporte de email configurado (SMTP o Resend) en Admin → Configuración de servicios' },
+        { status: 503 }
+      )
+    }
 
     const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })

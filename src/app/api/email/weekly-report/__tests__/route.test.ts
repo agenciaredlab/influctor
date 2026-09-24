@@ -5,7 +5,8 @@ import { POST, buildReportData } from '../route'
 vi.mock('@/lib/session', () => ({ getApiSession: vi.fn() }))
 
 vi.mock('@/lib/email', () => ({
-  sendWeeklyReport: vi.fn().mockResolvedValue({ data: { id: 'email_123' } }),
+  sendWeeklyReport:  vi.fn().mockResolvedValue({ data: { id: 'email_123' } }),
+  isEmailConfigured: vi.fn().mockResolvedValue(true),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -20,7 +21,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 import { getApiSession } from '@/lib/session'
-import { sendWeeklyReport } from '@/lib/email'
+import { sendWeeklyReport, isEmailConfigured } from '@/lib/email'
 import { prisma } from '@/lib/prisma'
 
 const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator' }
@@ -32,20 +33,25 @@ function makeReq() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  process.env.RESEND_API_KEY = 'test-resend-key'
+  vi.mocked(isEmailConfigured).mockResolvedValue(true)
 })
 
 describe('POST /api/email/weekly-report', () => {
-  it('returns 503 when RESEND_API_KEY is not set', async () => {
-    delete process.env.RESEND_API_KEY
-    const res = await POST(makeReq())
-    expect(res.status).toBe(503)
-  })
-
-  it('returns 401 when not authenticated', async () => {
+  it('returns 401 when not authenticated, even if no transport is configured', async () => {
     vi.mocked(getApiSession).mockResolvedValue(null)
+    vi.mocked(isEmailConfigured).mockResolvedValue(false)
     const res = await POST(makeReq())
     expect(res.status).toBe(401)
+  })
+
+  it('returns 503 when authenticated but no email transport (SMTP or Resend) is configured', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(isEmailConfigured).mockResolvedValue(false)
+    const res = await POST(makeReq())
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.error).toContain('Admin')
+    expect(body.error).not.toContain('.env.local')
   })
 
   it('returns 403 when user is on free plan', async () => {
@@ -55,8 +61,9 @@ describe('POST /api/email/weekly-report', () => {
     expect(res.status).toBe(403)
   })
 
-  it('sends report and returns ok for creator plan', async () => {
+  it('sends report and returns ok when only SMTP is configured (no RESEND_API_KEY)', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(isEmailConfigured).mockResolvedValue(true)
     vi.mocked(prisma.user.findUnique).mockResolvedValue(USER as any)
     vi.mocked(prisma.goal.findMany).mockResolvedValue([])
     vi.mocked(prisma.income.findMany).mockResolvedValue([])
@@ -68,8 +75,23 @@ describe('POST /api/email/weekly-report', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.ok).toBe(true)
-    expect(body.id).toBe('email_123')
     expect(sendWeeklyReport).toHaveBeenCalledOnce()
+  })
+
+  it('sends report and returns ok when only a Resend key from DB is configured', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(isEmailConfigured).mockResolvedValue(true)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(USER as any)
+    vi.mocked(prisma.goal.findMany).mockResolvedValue([])
+    vi.mocked(prisma.income.findMany).mockResolvedValue([])
+    vi.mocked(prisma.aiUsage.findMany).mockResolvedValue([])
+    vi.mocked(prisma.socialSnapshot.findMany).mockResolvedValue([])
+    vi.mocked(prisma.contentPost.findMany).mockResolvedValue([])
+
+    const res = await POST(makeReq())
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.ok).toBe(true)
   })
 })
 

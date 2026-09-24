@@ -3,7 +3,12 @@ import { NextRequest } from 'next/server'
 import { GET } from '../route'
 
 vi.mock('@/lib/email', () => ({
-  sendWeeklyReport: vi.fn().mockResolvedValue({ data: { id: 'email_123' } }),
+  sendWeeklyReport:  vi.fn().mockResolvedValue({ data: { id: 'email_123' } }),
+  isEmailConfigured: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/config', () => ({
+  getCronSecret: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -28,7 +33,8 @@ vi.mock('../../../email/weekly-report/route', () => ({
 }))
 
 import { prisma } from '@/lib/prisma'
-import { sendWeeklyReport } from '@/lib/email'
+import { sendWeeklyReport, isEmailConfigured } from '@/lib/email'
+import { getCronSecret } from '@/lib/config'
 import { buildReportData } from '../../../email/weekly-report/route'
 
 function makeReq(headers: Record<string, string> = {}) {
@@ -37,45 +43,61 @@ function makeReq(headers: Record<string, string> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  process.env.RESEND_API_KEY = 'test-resend-key'
+  vi.mocked(isEmailConfigured).mockResolvedValue(true)
+  vi.mocked(getCronSecret).mockResolvedValue('')
   vi.mocked(prisma.user.findMany).mockResolvedValue([])
 })
 
 describe('GET /api/cron/weekly-report', () => {
-  it('returns 401 when CRON_SECRET is set and header is missing', async () => {
-    process.env.CRON_SECRET = 'secret-token'
+  it('returns 401 when CRON_SECRET is configured and header is missing', async () => {
+    vi.mocked(getCronSecret).mockResolvedValue('secret-token')
     const res = await GET(makeReq())
     expect(res.status).toBe(401)
-    delete process.env.CRON_SECRET
   })
 
   it('returns 401 when bearer token is wrong', async () => {
-    process.env.CRON_SECRET = 'secret-token'
+    vi.mocked(getCronSecret).mockResolvedValue('secret-token')
     const res = await GET(makeReq({ authorization: 'Bearer wrong-token' }))
     expect(res.status).toBe(401)
-    delete process.env.CRON_SECRET
   })
 
-  it('returns 503 when RESEND_API_KEY is missing', async () => {
-    delete process.env.RESEND_API_KEY
+  it('denies by default (401) when no CRON_SECRET is configured at all', async () => {
+    vi.mocked(getCronSecret).mockResolvedValue('')
     const res = await GET(makeReq({ authorization: 'Bearer any' }))
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 503 when no email transport (SMTP or Resend) is configured', async () => {
+    vi.mocked(getCronSecret).mockResolvedValue('my-secret')
+    vi.mocked(isEmailConfigured).mockResolvedValue(false)
+    const res = await GET(makeReq({ authorization: 'Bearer my-secret' }))
     expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.error).toContain('Admin')
   })
 
-  it('succeeds without CRON_SECRET set', async () => {
-    delete process.env.CRON_SECRET
-    const res = await GET(makeReq())
+  it('sends the report when only SMTP is configured (isEmailConfigured true)', async () => {
+    vi.mocked(getCronSecret).mockResolvedValue('my-secret')
+    vi.mocked(isEmailConfigured).mockResolvedValue(true)
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 'u1', email: 'a@test.com', name: 'A', plan: 'creator' },
+    ] as any)
+
+    const res = await GET(makeReq({ authorization: 'Bearer my-secret' }))
     expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.sent).toBe(1)
   })
 
-  it('processes creator/pro users and returns sent count', async () => {
-    delete process.env.CRON_SECRET
+  it('sends the report when only a Resend key from DB is configured (isEmailConfigured true)', async () => {
+    vi.mocked(getCronSecret).mockResolvedValue('my-secret')
+    vi.mocked(isEmailConfigured).mockResolvedValue(true)
     vi.mocked(prisma.user.findMany).mockResolvedValue([
       { id: 'u1', email: 'a@test.com', name: 'A', plan: 'creator' },
       { id: 'u2', email: 'b@test.com', name: 'B', plan: 'pro' },
     ] as any)
 
-    const res = await GET(makeReq())
+    const res = await GET(makeReq({ authorization: 'Bearer my-secret' }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.sent).toBe(2)
@@ -84,13 +106,13 @@ describe('GET /api/cron/weekly-report', () => {
   })
 
   it('counts failures when buildReportData throws', async () => {
-    delete process.env.CRON_SECRET
+    vi.mocked(getCronSecret).mockResolvedValue('my-secret')
     vi.mocked(prisma.user.findMany).mockResolvedValue([
       { id: 'u1', email: 'fail@test.com', name: 'Fail', plan: 'creator' },
     ] as any)
     vi.mocked(buildReportData).mockRejectedValueOnce(new Error('DB error'))
 
-    const res = await GET(makeReq())
+    const res = await GET(makeReq({ authorization: 'Bearer my-secret' }))
     const body = await res.json()
     expect(body.sent).toBe(0)
     expect(body.failed).toBe(1)
@@ -98,11 +120,10 @@ describe('GET /api/cron/weekly-report', () => {
   })
 
   it('accepts valid CRON_SECRET authorization', async () => {
-    process.env.CRON_SECRET = 'my-secret'
+    vi.mocked(getCronSecret).mockResolvedValue('my-secret')
     vi.mocked(prisma.user.findMany).mockResolvedValue([])
 
     const res = await GET(makeReq({ authorization: 'Bearer my-secret' }))
     expect(res.status).toBe(200)
-    delete process.env.CRON_SECRET
   })
 })

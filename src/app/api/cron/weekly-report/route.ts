@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendWeeklyReport } from '@/lib/email'
+import { sendWeeklyReport, isEmailConfigured } from '@/lib/email'
 import { buildReportData } from '../../email/weekly-report/route'
 import { getCronSecret } from '@/lib/config'
 
@@ -21,8 +21,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json({ error: 'RESEND_API_KEY no configurada' }, { status: 503 })
+  if (!(await isEmailConfigured())) {
+    return NextResponse.json(
+      { error: 'Ningún transporte de email configurado (SMTP o Resend) en Admin → Configuración de servicios' },
+      { status: 503 }
+    )
   }
 
   // Fetch all active Creator/Pro users with email reports enabled
