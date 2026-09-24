@@ -119,6 +119,21 @@ describe('GET /api/cron/weekly-report', () => {
     expect(body.errors[0]).toContain('fail@test.com')
   })
 
+  it('counts a rejected sendWeeklyReport (e.g. Resend returned an error) as failed, not sent', async () => {
+    vi.mocked(getCronSecret).mockResolvedValue('my-secret')
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: 'u1', email: 'bounced@test.com', name: 'Bounced', plan: 'creator' },
+    ] as any)
+    vi.mocked(sendWeeklyReport).mockRejectedValueOnce(new Error('Resend failed to send email: Invalid `from` field'))
+
+    const res = await GET(makeReq({ authorization: 'Bearer my-secret' }))
+    const body = await res.json()
+    expect(body.sent).toBe(0)
+    expect(body.failed).toBe(1)
+    expect(body.errors[0]).toContain('bounced@test.com')
+    expect(body.errors[0]).toContain('Resend failed to send email')
+  })
+
   it('accepts valid CRON_SECRET authorization', async () => {
     vi.mocked(getCronSecret).mockResolvedValue('my-secret')
     vi.mocked(prisma.user.findMany).mockResolvedValue([])

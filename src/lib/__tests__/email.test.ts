@@ -1,9 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+// Hoisted so the mock factories below (which vitest hoists above imports)
+// can close over shared, per-test-controllable mock functions instead of a
+// fresh throwaway `vi.fn()` on every `new Resend()` / `createTransport()` call.
+const { resendSendMock, smtpSendMailMock, createTransportMock } = vi.hoisted(() => {
+  const resendSendMock     = vi.fn().mockResolvedValue({ data: { id: 'mock-id' }, error: null })
+  const smtpSendMailMock   = vi.fn().mockResolvedValue({ messageId: 'mock-msg' })
+  const createTransportMock = vi.fn().mockReturnValue({ sendMail: smtpSendMailMock })
+  return { resendSendMock, smtpSendMailMock, createTransportMock }
+})
+
 vi.mock('resend', () => ({
+  // A plain function (not an arrow, not vi.fn(arrow)) so `new Resend(key)`
+  // keeps working — arrow functions have no [[Construct]] and blow up `new`.
   Resend: function MockResend() {
-    return { emails: { send: vi.fn().mockResolvedValue({ id: 'mock-id' }) } }
+    return { emails: { send: resendSendMock } }
   },
+}))
+
+vi.mock('nodemailer', () => ({
+  default: { createTransport: createTransportMock },
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -24,11 +40,14 @@ import {
   buildPublishFailedHtml,
   buildWeeklyReportHtml,
   isEmailConfigured,
+  sendWeeklyReport,
   type WeeklyReportData,
 } from '../email'
 import {
   getResendKey,
   getSmtpHost,
+  getSmtpPort,
+  getSmtpSecure,
   getSmtpUser,
   getSmtpPass,
 } from '@/lib/config'
@@ -390,5 +409,81 @@ describe('isEmailConfigured', () => {
     vi.mocked(getSmtpPass).mockResolvedValue('secret')
     vi.mocked(getResendKey).mockResolvedValue('re_db_key')
     expect(await isEmailConfigured()).toBe(true)
+  })
+})
+
+// ─── sendMail transport resolution (real path via sendWeeklyReport) ──────────
+// Exercises resolveTransport()/sendMail() themselves — not just the
+// isEmailConfigured() gate — so a bug in port defaulting or Resend error
+// handling would fail these even if the gate above reports "configured".
+
+describe('sendMail transport behavior', () => {
+  const ORIGINAL_ENV = { ...process.env }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    delete process.env.RESEND_API_KEY
+    delete process.env.SMTP_HOST
+    delete process.env.SMTP_USER
+    delete process.env.SMTP_PASS
+    vi.mocked(getResendKey).mockResolvedValue('')
+    vi.mocked(getSmtpHost).mockResolvedValue('')
+    vi.mocked(getSmtpUser).mockResolvedValue('')
+    vi.mocked(getSmtpPass).mockResolvedValue('')
+    vi.mocked(getSmtpPort).mockResolvedValue('')
+    vi.mocked(getSmtpSecure).mockResolvedValue('')
+    resendSendMock.mockResolvedValue({ data: { id: 'mock-id' }, error: null })
+    smtpSendMailMock.mockResolvedValue({ messageId: 'mock-msg' })
+  })
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV }
+  })
+
+  function configureSmtp() {
+    vi.mocked(getSmtpHost).mockResolvedValue('smtp.example.com')
+    vi.mocked(getSmtpUser).mockResolvedValue('user@example.com')
+    vi.mocked(getSmtpPass).mockResolvedValue('secret')
+  }
+
+  it('defaults the SMTP port to 587 when getSmtpPort resolves to "" (unset in DB and env)', async () => {
+    configureSmtp()
+    vi.mocked(getSmtpPort).mockResolvedValue('')
+
+    await sendWeeklyReport(WEEKLY_BASE)
+
+    expect(createTransportMock).toHaveBeenCalledWith(expect.objectContaining({ port: 587, secure: false }))
+  })
+
+  it('uses port 465 and marks the connection secure when configured', async () => {
+    configureSmtp()
+    vi.mocked(getSmtpPort).mockResolvedValue('465')
+
+    await sendWeeklyReport(WEEKLY_BASE)
+
+    expect(createTransportMock).toHaveBeenCalledWith(expect.objectContaining({ port: 465, secure: true }))
+  })
+
+  it('defaults to 587 when the configured port is garbage (non-numeric)', async () => {
+    configureSmtp()
+    vi.mocked(getSmtpPort).mockResolvedValue('not-a-port')
+
+    await sendWeeklyReport(WEEKLY_BASE)
+
+    expect(createTransportMock).toHaveBeenCalledWith(expect.objectContaining({ port: 587 }))
+  })
+
+  it('rejects when Resend resolves with an error instead of throwing', async () => {
+    vi.mocked(getResendKey).mockResolvedValue('re_db_key')
+    resendSendMock.mockResolvedValue({ data: null, error: { name: 'validation_error', message: 'Invalid `from` field' } })
+
+    await expect(sendWeeklyReport(WEEKLY_BASE)).rejects.toThrow(/Resend failed to send email/)
+  })
+
+  it('resolves normally when Resend succeeds', async () => {
+    vi.mocked(getResendKey).mockResolvedValue('re_db_key')
+    resendSendMock.mockResolvedValue({ data: { id: 'ok_123' }, error: null })
+
+    await expect(sendWeeklyReport(WEEKLY_BASE)).resolves.toBeUndefined()
   })
 })

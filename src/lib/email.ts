@@ -38,6 +38,21 @@ interface ResendTransportConfig {
 
 type TransportConfig = SmtpTransportConfig | ResendTransportConfig | { kind: 'none'; from: string }
 
+const DEFAULT_SMTP_PORT = 587
+
+// getConfig() (lib/config.ts) returns '' — never null/undefined — when a key
+// isn't set in the DB or env, so a bare `?? 587` never fires and Number('')
+// resolves to 0. Parse defensively: blank, whitespace, or a non-integer /
+// out-of-range value all fall back to the default port.
+function resolveSmtpPort(raw: string): number {
+  const trimmed = (raw ?? '').trim()
+  if (trimmed) {
+    const parsed = Number(trimmed)
+    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535) return parsed
+  }
+  return DEFAULT_SMTP_PORT
+}
+
 async function resolveTransport(): Promise<TransportConfig> {
   const [smtpHost, smtpUser, smtpPass, smtpPort, smtpSecure, fromCfg, resendKey] = await Promise.all([
     getSmtpHost(), getSmtpUser(), getSmtpPass(), getSmtpPort(), getSmtpSecure(),
@@ -47,7 +62,7 @@ async function resolveTransport(): Promise<TransportConfig> {
   const from = fromCfg || process.env.EMAIL_FROM || 'Influctor <onboarding@resend.dev>'
 
   if (smtpHost && smtpUser && smtpPass) {
-    const port   = Number(smtpPort ?? 587)
+    const port   = resolveSmtpPort(smtpPort)
     const secure = smtpSecure === 'true' || port === 465
     return { kind: 'smtp', from, host: smtpHost, port, secure, user: smtpUser, pass: smtpPass }
   }
@@ -86,8 +101,14 @@ async function sendMail(payload: MailPayload): Promise<void> {
 
   if (transport.kind === 'resend') {
     // ── Resend fallback ───────────────────────────────────────────
+    // The Resend SDK does not throw on API failure — it resolves with
+    // { data, error } — so a failed send would otherwise look identical to
+    // a successful one to every caller (cron "sent" count, /reports 200 OK).
     const client = new Resend(transport.key)
-    await client.emails.send({ from: transport.from, to: payload.to, subject: payload.subject, html: payload.html })
+    const { error } = await client.emails.send({ from: transport.from, to: payload.to, subject: payload.subject, html: payload.html })
+    if (error) {
+      throw new Error(`Resend failed to send email: ${error.message ?? error.name ?? 'unknown error'}`)
+    }
     return
   }
 
