@@ -1,0 +1,52 @@
+# Compose de VERIFICACION del equipo de agentes — usa la imagen ya construida
+# por GitHub Actions (ghcr.io), nunca hace `build:` local (esta PC no puede
+# por Avast). No confundir con docker-compose.yml (el template real de
+# Portainer/produccion). Descartable: se recrea con `down -v` en cada ciclo.
+
+services:
+  db:
+    container_name: influctor-verify-db
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      POSTGRES_DB:       influctor
+      POSTGRES_USER:     influctor
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - influctor_verify_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U influctor -d influctor"]
+      interval: 5s
+      timeout:  5s
+      retries:  10
+    networks:
+      - influctor_verify_net
+
+  app:
+    container_name: influctor-verify-app
+    image: ghcr.io/agenciaredlab/influctor-app:${IMAGE_TAG}
+    restart: "no"
+    ports:
+      - "127.0.0.1:${APP_PORT:-3010}:3000"
+    environment:
+      NODE_ENV:            production
+      DATABASE_URL:        postgresql://influctor:${DB_PASSWORD}@influctor-verify-db:5432/influctor
+      NEXTAUTH_SECRET:     ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL:        ${APP_URL}
+      NEXT_PUBLIC_APP_URL: ${APP_URL}
+      CRON_SECRET:         ${CRON_SECRET}
+      ANTHROPIC_API_KEY:   sk-ant-dummy-test-key-not-real
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - influctor_verify_net
+
+networks:
+  influctor_verify_net:
+    name: influctor_verify_net
+    driver: bridge
+
+volumes:
+  influctor_verify_db_data:
+    name: influctor_verify_db_data

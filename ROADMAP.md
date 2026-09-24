@@ -15,19 +15,23 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
 
 ## 🔴 Crítico
 
-- [ ] **Competitor Research sin límite de plan ni tracking de uso de IA**
+- [x] **Competitor Research sin límite de plan ni tracking de uso de IA** — **hecho (2026-09-24)**
   `src/app/api/competitors/research/route.ts` — a diferencia de `ai/generate`, `ab-test` y
-  `repurpose`, esta ruta llama a Anthropic directo con solo un rate-limit de 5 req/min, sin
-  chequear `lib/plans.ts` ni registrar en `AiUsage`. Un usuario Free puede gastar Anthropic sin
-  límite todo el mes por acá — fuga de ingresos directa contra la promesa del plan Free
-  (10 generaciones/mes). Estado: **bloqueado** (2026-09-23) — el fix está implementado en
-  `claude/auto-work` (commit `4969281`: gate de `aiGenerationsPerMonth` antes de Anthropic + registro
-  en `AiUsage`/`aiUsageThisMonth`, 6 tests nuevos, tsc limpio) y `influctor-code-auditor` lo aprobó sin
-  críticos, pero NO se promovió: `influctor-release-guardian` no pudo levantar la instancia local porque
-  el Windows de pruebas intercepta TLS (Avast HTTPS scanning) y todo `apk add` dentro de Docker falla con
-  `certificate verify failed` (reproducido con `docker run --rm alpine:3.20 apk update`, sin Influctor de
-  por medio). Destrabar requiere que Camilo excluya Docker Desktop / WSL del escaneo HTTPS de Avast (o lo
-  desactive durante el build); después re-correr guardian + flow-tester y promover.
+  `repurpose`, esta ruta llamaba a Anthropic directo con solo un rate-limit de 5 req/min, sin
+  chequear `lib/plans.ts` ni registrar en `AiUsage`. Fix en commit `4969281`: gate de
+  `aiGenerationsPerMonth` antes de Anthropic + registro en `AiUsage`/`aiUsageThisMonth`, 6 tests
+  nuevos, tsc limpio. `influctor-code-auditor` lo aprobó sin críticos.
+  **Nota de arquitectura del ciclo de verificación (2026-09-23/24):** el guardián original
+  intentaba `docker build` LOCAL en la PC de pruebas — eso nunca funciona ahí (Avast intercepta
+  TLS dentro de cualquier contenedor, reproducido con un `apk update` de Alpine vacío, sin
+  Influctor de por medio; ni ERP ni Redchat compilan Docker local tampoco). Corregido: el build
+  corre en GitHub Actions (`workflow_dispatch` sobre `claude/auto-work`, con el job `deploy`
+  guardado por rama — commits `a747428`/`a18bce4`) y la PC local solo hace `docker pull` de la
+  imagen ya construida + `docker compose up` (nunca `build`) vía `docker-compose.verify.yml`
+  (nuevo, no confundir con `docker-compose.yml` real). Verificado de punta a punta: build en
+  Actions exitoso con `deploy` salteado, imagen bajada y levantada limpia, límite probado en las
+  dos direcciones reales (usuario al límite → `429 limitReached:true`; usuario con cupo → pasa el
+  gate). Promovido a producción.
   Hallazgos menores del auditor (preexistentes, idénticos en `ab-test` y `ai/generate`, no bloquean): si
   el `User` no existe en BD con JWT válido se saltan gate y tracking; el gate no contempla
   `aiUsageResetAt` de un mes anterior (bloquea hasta que corre `cron/ai-reset`); carrera gate/incremento
