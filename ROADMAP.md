@@ -43,7 +43,7 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   — mientras que `lib/email.ts`'s `sendMail()` real ya es DB-first (soporta Resend Y SMTP vía
   `lib/config.ts`). Resultado: el cron nunca manda el reporte semanal si el admin siguió el
   camino "correcto" documentado (cargar la clave desde el panel, no en `.env.local`). Estado:
-  **pendiente**.
+  **en progreso** (2026-09-24, despachado a influctor-backend-builder).
 
 ## 🟡 Importante
 
