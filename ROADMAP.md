@@ -37,13 +37,20 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   `aiUsageResetAt` de un mes anterior (bloquea hasta que corre `cron/ai-reset`); carrera gate/incremento
   acotada por el rate-limit.
 
-- [ ] **Reporte semanal no se envía si Resend/SMTP se configuró solo desde `/admin/settings`**
+- [x] **Reporte semanal no se envía si Resend/SMTP se configuró solo desde `/admin/settings`** — **hecho (2026-09-25)**
   `src/app/api/cron/weekly-report/route.ts:24` y `src/app/api/email/weekly-report/route.ts:143`
   chequean `process.env.RESEND_API_KEY` directo y devuelven 503 si no está seteado en el entorno
   — mientras que `lib/email.ts`'s `sendMail()` real ya es DB-first (soporta Resend Y SMTP vía
   `lib/config.ts`). Resultado: el cron nunca manda el reporte semanal si el admin siguió el
-  camino "correcto" documentado (cargar la clave desde el panel, no en `.env.local`). Estado:
-  **en progreso** (2026-09-24, despachado a influctor-backend-builder).
+  camino "correcto" documentado (cargar la clave desde el panel, no en `.env.local`).
+  Fix (commits `0b4d13e`, `a3589c7`): nuevo `isEmailConfigured()` que comparte `resolveTransport()`
+  con `sendMail()` (una sola regla, no pueden discrepar); además corrige 2 bugs vecinos en el mismo
+  camino: puerto SMTP vacío (`Number('')` = 0, ahora default 587) y Resend que no lanzaba error en
+  fallos de API (el cron contaba "enviado" un envío fallido). 33 tests nuevos.
+  Verificado en la instancia de prueba con la imagen construida en Actions, SIN `RESEND_API_KEY`
+  en el entorno y SMTP solo en `SystemConfig` (cifrado, puerto sin definir): `POST
+  /api/email/weekly-report` → 200 y el correo llegó a un buzón mailpit; cron → 401 sin secreto,
+  `{"sent":1,"failed":0}` con secreto. Promovido.
 
 ## 🟡 Importante
 
