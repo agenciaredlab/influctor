@@ -33,7 +33,7 @@ function makeAccount(overrides: Partial<{
   }
 }
 
-function cronReq(secret?: string) {
+function cronReq(secret: string | null = 'secret123') {
   const headers: Record<string, string> = {}
   if (secret) headers['authorization'] = `Bearer ${secret}`
   return new NextRequest('http://localhost/api/cron/sync-tiktok', { headers })
@@ -41,7 +41,7 @@ function cronReq(secret?: string) {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  delete process.env.CRON_SECRET
+  process.env.CRON_SECRET = 'secret123'
   vi.mocked(syncTikTokAccount).mockResolvedValue({
     profile: true, videosProcessed: 10,
     followers: 5000, newFollowers: 50, totalViews: 40000, engagement: 3.1,
@@ -51,15 +51,15 @@ beforeEach(() => {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 describe('GET /api/cron/sync-tiktok — auth', () => {
-  it('allows request when CRON_SECRET is not set', async () => {
-    vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([])
+  it('returns 401 (deny by default) when CRON_SECRET is not configured', async () => {
+    delete process.env.CRON_SECRET
     const res = await GET(cronReq())
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(401)
   })
 
   it('returns 401 when CRON_SECRET is set but header is missing', async () => {
     process.env.CRON_SECRET = 'secret123'
-    const res = await GET(cronReq())
+    const res = await GET(cronReq(null))
     expect(res.status).toBe(401)
   })
 

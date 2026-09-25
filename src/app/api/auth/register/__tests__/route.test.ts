@@ -13,6 +13,7 @@ vi.mock('@/lib/prisma', () => ({
       create:     vi.fn(),
       count:      vi.fn().mockResolvedValue(1), // default: not first user
     },
+    $transaction: vi.fn(),
   },
 }))
 
@@ -30,6 +31,8 @@ function makeReq(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Run the interactive transaction callback against the same mocked client
+  vi.mocked(prisma.$transaction).mockImplementation((async (fn: any) => fn(prisma)) as any)
 })
 
 describe('POST /api/auth/register', () => {
@@ -99,5 +102,34 @@ describe('POST /api/auth/register', () => {
     vi.mocked(prisma.user.findUnique).mockRejectedValue(new Error('DB error'))
     const res = await POST(makeReq({ name: 'Test', email: 'test@example.com', password: 'password123' }))
     expect(res.status).toBe(500)
+  })
+})
+
+describe('POST /api/auth/register — admin uniqueness', () => {
+  beforeEach(() => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.create).mockResolvedValue(CREATED_USER as any)
+  })
+
+  it('makes the very first user the admin', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValue(0)
+    await POST(makeReq({ name: 'First', email: 'first@example.com', password: 'password123' }))
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isAdmin: true }) })
+    )
+  })
+
+  it('never makes a later user an admin', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValue(1)
+    await POST(makeReq({ name: 'Second', email: 'second@example.com', password: 'password123' }))
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isAdmin: false }) })
+    )
+  })
+
+  it('counts and creates inside a Serializable transaction', async () => {
+    vi.mocked(prisma.user.count).mockResolvedValue(0)
+    await POST(makeReq({ name: 'First', email: 'first@example.com', password: 'password123' }))
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' })
   })
 })

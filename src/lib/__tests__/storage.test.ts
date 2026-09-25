@@ -47,32 +47,33 @@ describe('getPublicUrl', () => {
   const ORIGINAL_ENV = { ...process.env }
 
   afterEach(() => {
-    process.env.STORAGE_PUBLIC_URL = ORIGINAL_ENV.STORAGE_PUBLIC_URL
-    process.env.STORAGE_ENDPOINT   = ORIGINAL_ENV.STORAGE_ENDPOINT
-    process.env.STORAGE_BUCKET     = ORIGINAL_ENV.STORAGE_BUCKET
+    for (const k of ['STORAGE_PUBLIC_URL', 'STORAGE_ENDPOINT', 'STORAGE_BUCKET'] as const) {
+      if (ORIGINAL_ENV[k] === undefined) delete process.env[k]
+      else process.env[k] = ORIGINAL_ENV[k]
+    }
   })
 
-  it('uses STORAGE_PUBLIC_URL when set', () => {
+  it('uses STORAGE_PUBLIC_URL when set', async () => {
     process.env.STORAGE_PUBLIC_URL = 'https://cdn.example.com/files'
-    const url = getPublicUrl('avatars/user_123.jpg')
+    const url = await getPublicUrl('avatars/user_123.jpg')
     expect(url).toBe('https://cdn.example.com/files/avatars/user_123.jpg')
   })
 
-  it('strips trailing slash from STORAGE_PUBLIC_URL', () => {
+  it('strips trailing slash from STORAGE_PUBLIC_URL', async () => {
     process.env.STORAGE_PUBLIC_URL = 'https://cdn.example.com/files/'
-    expect(getPublicUrl('foo.jpg')).toBe('https://cdn.example.com/files/foo.jpg')
+    expect(await getPublicUrl('foo.jpg')).toBe('https://cdn.example.com/files/foo.jpg')
   })
 
-  it('falls back to endpoint + bucket when STORAGE_PUBLIC_URL is not set', () => {
+  it('falls back to endpoint + bucket when STORAGE_PUBLIC_URL is not set', async () => {
     delete process.env.STORAGE_PUBLIC_URL
     process.env.STORAGE_ENDPOINT = 'http://localhost:9000'
     process.env.STORAGE_BUCKET   = 'influctor'
-    const url = getPublicUrl('avatars/user_123.jpg')
+    const url = await getPublicUrl('avatars/user_123.jpg')
     expect(url).toBe('http://localhost:9000/influctor/avatars/user_123.jpg')
   })
 
-  it('handles nested keys correctly', () => {
+  it('handles nested keys correctly', async () => {
     process.env.STORAGE_PUBLIC_URL = 'https://cdn.example.com'
-    expect(getPublicUrl('a/b/c.pdf')).toBe('https://cdn.example.com/a/b/c.pdf')
+    expect(await getPublicUrl('a/b/c.pdf')).toBe('https://cdn.example.com/a/b/c.pdf')
   })
 })

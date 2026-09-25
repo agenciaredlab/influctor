@@ -9,6 +9,7 @@ vi.mock('@/lib/prisma', () => ({
     brandDeal: {
       findMany: vi.fn(),
       create:   vi.fn(),
+      count:    vi.fn(),
     },
   },
 }))
@@ -28,6 +29,7 @@ const DEAL = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(prisma.brandDeal.count).mockResolvedValue(0)
 })
 
 describe('GET /api/deals', () => {
@@ -137,5 +139,27 @@ describe('POST /api/deals', () => {
       body: JSON.stringify({ brand: 'Nike', platform: 'instagram', type: 'post' }),
     }))
     expect(res.status).toBe(500)
+  })
+})
+
+describe('POST /api/deals — plan limit', () => {
+  it('returns 403 when a free user already has 3 brand deals', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.brandDeal.count).mockResolvedValue(3)
+    const res = await POST(new NextRequest('http://localhost/api/deals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: 'Nike' }),
+    }))
+    expect(res.status).toBe(403)
+    expect(prisma.brandDeal.create).not.toHaveBeenCalled()
+  })
+
+  it('does not count deals for a plan with unlimited brand deals', async () => {
+    vi.mocked(getApiSession).mockResolvedValue({ ...SESSION, plan: 'creator' } as any)
+    vi.mocked(prisma.brandDeal.create).mockResolvedValue(DEAL as any)
+    const res = await POST(new NextRequest('http://localhost/api/deals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: 'Nike' }),
+    }))
+    expect(res.status).toBe(201)
+    expect(prisma.brandDeal.count).not.toHaveBeenCalled()
   })
 })

@@ -6,8 +6,9 @@ vi.mock('@/lib/session', () => ({ getApiSession: vi.fn() }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    contentPost:   { findUnique: vi.fn(), update: vi.fn() },
+    contentPost:   { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     socialAccount: { findFirst: vi.fn() },
+    user:          { findUnique: vi.fn() },
   },
 }))
 
@@ -53,6 +54,8 @@ function mockMetaSuccess() {
 beforeEach(() => {
   vi.clearAllMocks()
   mockFetch.mockReset()
+  delete process.env.CRON_SECRET
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({ plan: 'creator' } as any)
 })
 
 describe('POST /api/social/instagram/publish', () => {
@@ -70,7 +73,7 @@ describe('POST /api/social/instagram/publish', () => {
 
   it('returns 404 when post not found', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue(null)
 
     const res = await POST(makeReq({ postId: 'post_1' }))
     expect(res.status).toBe(404)
@@ -78,7 +81,7 @@ describe('POST /api/social/instagram/publish', () => {
 
   it('returns 400 when post is already published', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue({ ...CONTENT_POST, status: 'published' } as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue({ ...CONTENT_POST, status: 'published' } as any)
 
     const res = await POST(makeReq({ postId: 'post_1' }))
     expect(res.status).toBe(400)
@@ -88,7 +91,7 @@ describe('POST /api/social/instagram/publish', () => {
 
   it('returns 400 when post has no imageUrl', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue({ ...CONTENT_POST, imageUrl: null } as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue({ ...CONTENT_POST, imageUrl: null } as any)
 
     const res = await POST(makeReq({ postId: 'post_1' }))
     expect(res.status).toBe(400)
@@ -98,7 +101,7 @@ describe('POST /api/social/instagram/publish', () => {
 
   it('returns 404 when no active Instagram account is connected', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue(CONTENT_POST as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue(CONTENT_POST as any)
     vi.mocked(prisma.socialAccount.findFirst).mockResolvedValue(null)
 
     const res = await POST(makeReq({ postId: 'post_1' }))
@@ -109,7 +112,7 @@ describe('POST /api/social/instagram/publish', () => {
 
   it('returns 401 when Instagram token is expired', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue(CONTENT_POST as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue(CONTENT_POST as any)
     vi.mocked(prisma.socialAccount.findFirst).mockResolvedValue({
       ...IG_ACCOUNT, tokenExpiresAt: new Date(Date.now() - 86400_000),
     } as any)
@@ -120,7 +123,7 @@ describe('POST /api/social/instagram/publish', () => {
 
   it('publishes image post and marks it as published', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue({
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue({
       ...CONTENT_POST, type: 'post', imageUrl: 'https://example.com/photo.jpg',
     } as any)
     vi.mocked(prisma.socialAccount.findFirst).mockResolvedValue(IG_ACCOUNT as any)
@@ -138,7 +141,7 @@ describe('POST /api/social/instagram/publish', () => {
 
   it('records publish error on Meta API failure', async () => {
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
-    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue({
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue({
       ...CONTENT_POST, type: 'post', imageUrl: 'https://example.com/photo.jpg',
     } as any)
     vi.mocked(prisma.socialAccount.findFirst).mockResolvedValue(IG_ACCOUNT as any)
@@ -153,5 +156,50 @@ describe('POST /api/social/instagram/publish', () => {
     expect(prisma.contentPost.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ publishError: 'Invalid token' }) })
     )
+  })
+})
+
+describe('POST /api/social/instagram/publish — ownership and plan', () => {
+  it('scopes the post lookup to the logged-in user (IDOR)', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue(null)
+    const res = await POST(makeReq({ postId: 'someone_elses_post' }))
+    expect(res.status).toBe(404)
+    expect(prisma.contentPost.findFirst).toHaveBeenCalledWith({ where: { id: 'someone_elses_post', userId: 'user_1' } })
+    expect(prisma.contentPost.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when the free plan tries to publish directly', async () => {
+    vi.mocked(getApiSession).mockResolvedValue({ ...SESSION, plan: 'free' } as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue(CONTENT_POST as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ plan: 'free' } as any)
+    const res = await POST(makeReq({ postId: 'post_1' }))
+    expect(res.status).toBe(403)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('cron call with the right X-Cron-Secret resolves the owner from the post, not a session', async () => {
+    process.env.CRON_SECRET = 'cron-secret'
+    vi.mocked(prisma.contentPost.findUnique).mockResolvedValue({ ...CONTENT_POST, imageUrl: null } as any)
+    const res = await POST(new NextRequest('http://localhost/api/social/instagram/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cron-secret': 'cron-secret' },
+      body: JSON.stringify({ postId: 'post_1' }),
+    }))
+    expect(getApiSession).not.toHaveBeenCalled()
+    expect(prisma.contentPost.findUnique).toHaveBeenCalledWith({ where: { id: 'post_1' } })
+    expect(res.status).toBe(400) // reached the post checks (no imageUrl) — i.e. it was authorized
+  })
+
+  it('a wrong X-Cron-Secret does not bypass session auth', async () => {
+    process.env.CRON_SECRET = 'cron-secret'
+    vi.mocked(getApiSession).mockResolvedValue(null)
+    const res = await POST(new NextRequest('http://localhost/api/social/instagram/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cron-secret': 'nope' },
+      body: JSON.stringify({ postId: 'post_1' }),
+    }))
+    expect(res.status).toBe(401)
+    expect(prisma.contentPost.findUnique).not.toHaveBeenCalled()
   })
 })

@@ -31,7 +31,7 @@ function makeAccount(overrides: Partial<{
   }
 }
 
-function cronReq(secret?: string) {
+function cronReq(secret: string | null = 'secret123') {
   const headers: Record<string, string> = {}
   if (secret) headers['authorization'] = `Bearer ${secret}`
   return new NextRequest('http://localhost/api/cron/sync-instagram', { headers })
@@ -39,7 +39,7 @@ function cronReq(secret?: string) {
 
 beforeEach(() => {
   vi.resetAllMocks()
-  delete process.env.CRON_SECRET
+  process.env.CRON_SECRET = 'secret123'
   vi.mocked(syncInstagramAccount).mockResolvedValue({
     profile: true, insights: true, mediaSynced: 5,
     followers: 1000, newFollowers: 10, reach: 5000, impressions: 8000,
@@ -49,15 +49,15 @@ beforeEach(() => {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 describe('GET /api/cron/sync-instagram — auth', () => {
-  it('allows request when CRON_SECRET is not set', async () => {
-    vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([])
+  it('returns 401 (deny by default) when CRON_SECRET is not configured', async () => {
+    delete process.env.CRON_SECRET
     const res = await GET(cronReq())
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(401)
   })
 
   it('returns 401 when CRON_SECRET is set but header is missing', async () => {
     process.env.CRON_SECRET = 'secret123'
-    const res = await GET(cronReq())
+    const res = await GET(cronReq(null))
     expect(res.status).toBe(401)
   })
 

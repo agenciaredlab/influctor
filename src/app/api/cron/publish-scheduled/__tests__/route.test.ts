@@ -42,7 +42,7 @@ function makePost(overrides: Partial<{
   }
 }
 
-function cronReq(secret?: string) {
+function cronReq(secret: string | null = 'secret123') {
   const headers: Record<string, string> = {}
   if (secret) headers['authorization'] = `Bearer ${secret}`
   return new NextRequest('http://localhost/api/cron/publish-scheduled', { headers })
@@ -52,7 +52,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.useFakeTimers()
   vi.setSystemTime(NOW)
-  delete process.env.CRON_SECRET
+  process.env.CRON_SECRET = 'secret123'
   vi.mocked(prisma.contentPost.update).mockResolvedValue({} as any)
   mockFetch.mockResolvedValue({
     ok: true,
@@ -67,15 +67,15 @@ afterEach(() => {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 describe('GET /api/cron/publish-scheduled — auth', () => {
-  it('allows request when CRON_SECRET is not set', async () => {
-    vi.mocked(prisma.contentPost.findMany).mockResolvedValue([])
+  it('returns 401 (deny by default) when CRON_SECRET is not configured', async () => {
+    delete process.env.CRON_SECRET
     const res = await GET(cronReq())
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(401)
   })
 
   it('returns 401 when CRON_SECRET is set but header is missing', async () => {
     process.env.CRON_SECRET = 'secret123'
-    const res = await GET(cronReq())
+    const res = await GET(cronReq(null))
     expect(res.status).toBe(401)
   })
 

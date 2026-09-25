@@ -161,10 +161,10 @@ export function buildWeeklyReportHtml(d: WeeklyReportData): string {
   const s = d.summary
 
   const kpiCards = [
-    { label: 'Nuevos seguidores', value: `+${s.followersGained.toLocaleString()}`, change: s.followersChange, icon: '📈' },
+    { label: 'Nuevos seguidores', value: `+${s.followersGained.toLocaleString('en-US')}`, change: s.followersChange, icon: '📈' },
     { label: 'Alcance total', value: `${(s.reach / 1000).toFixed(1)}K`, change: s.reachChange, icon: '👁️' },
     { label: 'Engagement', value: `${s.engagementRate}%`, change: s.engChange, icon: '⚡' },
-    { label: 'Ingresos', value: `$${s.income.toLocaleString()}`, change: s.incomeChange, icon: '💰' },
+    { label: 'Ingresos', value: `$${s.income.toLocaleString('en-US')}`, change: s.incomeChange, icon: '💰' },
   ]
 
   const kpiHtml = kpiCards.map(k => `
@@ -191,7 +191,7 @@ export function buildWeeklyReportHtml(d: WeeklyReportData): string {
             </td>
             <td style="text-align:right;white-space:nowrap">
               <div style="font-size:13px;font-weight:700;color:#ffffff">${(c.views / 1000).toFixed(1)}K</div>
-              <div style="font-size:11px;color:#6b7280">❤️ ${c.likes.toLocaleString()}</div>
+              <div style="font-size:11px;color:#6b7280">❤️ ${c.likes.toLocaleString('en-US')}</div>
             </td>
           </tr>
         </table>
@@ -207,7 +207,7 @@ export function buildWeeklyReportHtml(d: WeeklyReportData): string {
         </tr>
       </table>
       ${progressBar(g.progress)}
-      <div style="font-size:10px;color:#6b7280">${g.current.toLocaleString()} / ${g.target.toLocaleString()}</div>
+      <div style="font-size:10px;color:#6b7280">${g.current.toLocaleString('en-US')} / ${g.target.toLocaleString('en-US')}</div>
     </div>`).join('')
 
   const recsHtml = d.recommendations.map(r => `
@@ -378,7 +378,7 @@ export function buildDealStageHtml(d: DealStageData): string {
         </td></tr>
         <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e">
           <div style="font-size:18px;font-weight:700;color:#ffffff;margin-bottom:6px">${d.brand}</div>
-          <div style="font-size:13px;color:#6b7280;margin-bottom:20px">Valor: <span style="color:#ffffff;font-weight:600">${d.currency} ${d.value.toLocaleString()}</span></div>
+          <div style="font-size:13px;color:#6b7280;margin-bottom:20px">Valor: <span style="color:#ffffff;font-weight:600">${d.currency} ${d.value.toLocaleString('en-US')}</span></div>
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="text-align:center;background:#13131f;border:1px solid #1a1a2e;border-radius:10px;padding:14px">
@@ -436,7 +436,7 @@ export function buildGoalAchievedHtml(d: GoalAchievedData): string {
         </td></tr>
         <tr><td style="background:#0d0d1a;padding:28px 32px;border-left:1px solid #1a1a2e;border-right:1px solid #1a1a2e;text-align:center">
           <div style="font-size:16px;font-weight:600;color:#ffffff;margin-bottom:6px">${d.goalTitle}</div>
-          <div style="font-size:28px;font-weight:800;color:#34d399;margin:12px 0">${d.targetValue.toLocaleString()} ${d.unit}</div>
+          <div style="font-size:28px;font-weight:800;color:#34d399;margin:12px 0">${d.targetValue.toLocaleString('en-US')} ${d.unit}</div>
           <div style="background:#064e3b;border:1px solid #059669;border-radius:8px;padding:10px 16px;display:inline-block;margin-top:6px">
             <span style="font-size:12px;font-weight:700;color:#34d399">✓ 100% completado</span>
           </div>

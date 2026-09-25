@@ -80,7 +80,7 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   falta la opinión de Camilo, marcar bloqueado con esa nota en vez de decidir solo). Estado:
   **pendiente**.
 
-- [ ] **Campo muerto `priceId` en `lib/plans.ts`**
+- [x] **Campo muerto `priceId` en `lib/plans.ts`** — **hecho (2026-09-25)**, campo eliminado (`tsc` confirma que nadie lo leía).
   `src/lib/plans.ts:40,77` definen `priceId: process.env.STRIPE_PRICE_CREATOR/PRO`, pero ni
   `stripe/checkout` ni `stripe/webhook` lo usan — ambos llaman correctamente a
   `getStripePriceCreator()`/`getStripePricePro()` de `lib/config.ts`. Confirmado por grep: `.priceId`
@@ -95,7 +95,16 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   límites con el dueño? ¿tiene su propio login?). Estado: **bloqueado — necesita decisión de
   producto de Camilo antes de implementar**.
 
-- [ ] **12 archivos de test fallando en la suite completa (68/590 tests)**
+- [x] **12 archivos de test fallando en la suite completa (68/590 tests)** — **hecho (2026-09-25): suite 100% verde, 50 archivos / 622 tests.**
+  Causa: los tests quedaron desactualizados respecto a los arreglos de seguridad de julio (el código
+  estaba bien, los mocks no): faltaban `count` (límites de plan), `findFirst`/`user` (IDOR y gate de
+  plan en publish), `$transaction` (unicidad del admin), el secreto en los crons (deny-by-default) y
+  la firma en el webhook de Stripe (los tests probaban el "modo dev" sin firma que se eliminó).
+  Ahora esos tests cubren de verdad el comportamiento nuevo (rechazo sin secreto/firma, IDOR, límite
+  de plan, admin único). Además `storage.getPublicUrl` es async (los tests no hacían `await`) y los
+  correos usaban `toLocaleString()` sin idioma, así que el formato de números dependía de la máquina:
+  fijado a `en-US` (mismo resultado que producción hoy).
+  Descripción original:
   Detectado 2026-09-23 al correr `npx vitest run` sobre `claude/auto-work` (estos archivos tienen el
   mismo código que la rama default, así que las fallas ya existían): `auth/register`, `content`,
   `cron/publish-scheduled`, `cron/sync-instagram`, `cron/sync-tiktok`, `cron/weekly-report`, `deals`,

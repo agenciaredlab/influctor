@@ -9,6 +9,7 @@ vi.mock('@/lib/prisma', () => ({
     contentPost: {
       findMany: vi.fn(),
       create:   vi.fn(),
+      count:    vi.fn(),
     },
   },
 }))
@@ -27,6 +28,7 @@ const POST_RECORD = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(prisma.contentPost.count).mockResolvedValue(0)
 })
 
 describe('GET /api/content', () => {
@@ -149,5 +151,27 @@ describe('POST /api/content', () => {
       body: JSON.stringify({ title: 'Post', platform: 'instagram', type: 'post' }),
     }))
     expect(res.status).toBe(500)
+  })
+})
+
+describe('POST /api/content — plan limit', () => {
+  const req = () => new NextRequest('http://localhost/api/content', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'My Reel' }),
+  })
+
+  it('returns 403 when a free user already has 10 posts', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
+    vi.mocked(prisma.contentPost.count).mockResolvedValue(10)
+    const res = await POST(req())
+    expect(res.status).toBe(403)
+    expect(prisma.contentPost.create).not.toHaveBeenCalled()
+  })
+
+  it('does not count posts for a plan with unlimited posts', async () => {
+    vi.mocked(getApiSession).mockResolvedValue({ ...SESSION, plan: 'creator' } as any)
+    vi.mocked(prisma.contentPost.create).mockResolvedValue(POST_RECORD as any)
+    const res = await POST(req())
+    expect(res.status).toBe(201)
+    expect(prisma.contentPost.count).not.toHaveBeenCalled()
   })
 })

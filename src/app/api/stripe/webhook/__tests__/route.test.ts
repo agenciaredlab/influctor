@@ -87,6 +87,8 @@ function makeReq(body: string, sig?: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // A valid signature: constructEvent returns the event that was posted
+  mockConstructEvent.mockImplementation((body: string) => JSON.parse(body))
   process.env.STRIPE_SECRET_KEY     = 'sk_test_key'
   process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test'
   process.env.STRIPE_PRICE_CREATOR  = 'price_creator'
@@ -112,21 +114,25 @@ describe('POST /api/stripe/webhook', () => {
     expect(res.status).toBe(400)
   })
 
-  it('processes event without signature in dev mode', async () => {
+  it('rejects with 503 (and processes nothing) when the webhook secret is not configured', async () => {
     delete process.env.STRIPE_WEBHOOK_SECRET
-    const body = JSON.stringify(MOCK_EVENT_CREATED)
+    const res = await POST(makeReq(JSON.stringify(MOCK_EVENT_CREATED), 'any-sig'))
+    expect(res.status).toBe(503)
+    expect(mockConstructEvent).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
 
-    const res = await POST(makeReq(body))
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.received).toBe(true)
+  it('rejects with 400 (and processes nothing) when the stripe-signature header is missing', async () => {
+    const res = await POST(makeReq(JSON.stringify(MOCK_EVENT_CREATED)))
+    expect(res.status).toBe(400)
+    expect(mockConstructEvent).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
   it('processes subscription.created and upserts plan', async () => {
-    delete process.env.STRIPE_WEBHOOK_SECRET
     const body = JSON.stringify(MOCK_EVENT_CREATED)
 
-    await POST(makeReq(body))
+    await POST(makeReq(body, 'valid-sig'))
 
     expect(prisma.$transaction).toHaveBeenCalledOnce()
     const [ops] = vi.mocked(prisma.$transaction).mock.calls[0]
@@ -134,19 +140,17 @@ describe('POST /api/stripe/webhook', () => {
   })
 
   it('processes subscription.deleted and resets user to free', async () => {
-    delete process.env.STRIPE_WEBHOOK_SECRET
     const body = JSON.stringify(MOCK_EVENT_DELETED)
 
-    await POST(makeReq(body))
+    await POST(makeReq(body, 'valid-sig'))
 
     expect(prisma.$transaction).toHaveBeenCalledOnce()
   })
 
   it('processes invoice.payment_failed and sets past_due status', async () => {
-    delete process.env.STRIPE_WEBHOOK_SECRET
     const body = JSON.stringify(MOCK_EVENT_PAYMENT_FAILED)
 
-    await POST(makeReq(body))
+    await POST(makeReq(body, 'valid-sig'))
 
     expect(prisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { planStatus: 'past_due' } })
@@ -154,10 +158,9 @@ describe('POST /api/stripe/webhook', () => {
   })
 
   it('returns received:true on success', async () => {
-    delete process.env.STRIPE_WEBHOOK_SECRET
     const body = JSON.stringify({ type: 'unknown.event', data: { object: {} } })
 
-    const res = await POST(makeReq(body))
+    const res = await POST(makeReq(body, 'valid-sig'))
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.received).toBe(true)
@@ -166,7 +169,6 @@ describe('POST /api/stripe/webhook', () => {
 
 describe('invoice.payment_succeeded (via webhook)', () => {
   it('retrieves subscription and upserts when payment succeeds', async () => {
-    delete process.env.STRIPE_WEBHOOK_SECRET
     const event = {
       type: 'invoice.payment_succeeded',
       data: { object: { subscription: 'sub_test', subscription_details: { metadata: {} }, metadata: {} } },
@@ -176,7 +178,7 @@ describe('invoice.payment_succeeded (via webhook)', () => {
       items: { data: [{ price: { id: 'price_creator' }, current_period_start: 1700000000, current_period_end: 1702592000 }] },
     })
 
-    await POST(makeReq(JSON.stringify(event)))
+    await POST(makeReq(JSON.stringify(event), 'valid-sig'))
     expect(mockRetrieve).toHaveBeenCalledWith('sub_test', { expand: ['items.data'] })
     expect(prisma.$transaction).toHaveBeenCalled()
   })
