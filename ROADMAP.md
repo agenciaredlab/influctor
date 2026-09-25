@@ -54,7 +54,12 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
 
 ## 🟡 Importante
 
-- [ ] **3 rutas de IA leen credenciales directo de `process.env` en vez de `lib/config.ts`**
+- [x] **3 rutas de IA leen credenciales directo de `process.env` en vez de `lib/config.ts`** — **hecho (2026-09-25)**
+  Ahora usan `getAnthropicKey()`/`getInstagramAppId()`/`getInstagramAppSecret()`. Test nuevo
+  (`src/app/api/__tests__/ai-routes-db-config.test.ts`) que falla con el código anterior. Verificado
+  con la imagen de Actions: sin la clave en ningún lado → 503 en las 3; clave solo en `SystemConfig`
+  → pasan el chequeo e intentan llamar a Anthropic (el 500 posterior fue TLS/Avast del entorno de
+  prueba, no del código).
   `src/app/api/ab-test/route.ts:34`, `src/app/api/competitors/research/route.ts:10-11,46`,
   `src/app/api/repurpose/route.ts:96` — usan `process.env.ANTHROPIC_API_KEY`/Instagram directo en
   vez de `getAnthropicKey()`/`getInstagramAppId()`/`getInstagramAppSecret()`. Si el admin solo
@@ -62,7 +67,7 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   configurada" mientras `ai/generate` (que sí usa el sistema DB-first) sigue andando —
   inconsistente y confuso. Estado: **pendiente**.
 
-- [ ] **Cliente Anthropic muerto a nivel de módulo en `src/lib/anthropic.ts`**
+- [x] **Cliente Anthropic muerto a nivel de módulo en `src/lib/anthropic.ts`** — **hecho (2026-09-25)**, archivo eliminado (nadie lo importaba).
   Exporta un cliente creado una sola vez al boot con `process.env.ANTHROPIC_API_KEY` (nunca puede
   recoger una key seteada después vía DB sin reiniciar el proceso). Hoy no lo usa nadie (cada ruta
   crea su propio cliente inline), pero es una trampa para la próxima feature que lo importe.
