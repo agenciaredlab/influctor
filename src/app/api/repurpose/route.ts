@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
+import { getAnthropicKey } from '@/lib/config'
 
 const FORMAT_SPECS: Record<string, string> = {
   instagram_caption:  'Instagram caption with emojis, 3-5 relevant hashtags, and a question CTA at the end (max 2200 chars, ideal 150-300)',
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
   if (!sourceContent?.trim())    return NextResponse.json({ error: 'sourceContent requerido' }, { status: 400 })
   if (!selectedFormats?.length)  return NextResponse.json({ error: 'selectedFormats requerido' }, { status: 400 })
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = await getAnthropicKey()
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   // Plan limit check

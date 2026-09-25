@@ -4,13 +4,13 @@ import { getApiSession } from '@/lib/session'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
+import { getAnthropicKey, getInstagramAppId, getInstagramAppSecret } from '@/lib/config'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 
 // Fetch public Facebook Page data using App Token (no user auth needed)
 async function fetchFacebookPage(pageSlug: string): Promise<{ fans: number | null; followers: number | null } | null> {
-  const appId     = process.env.INSTAGRAM_APP_ID
-  const appSecret = process.env.INSTAGRAM_APP_SECRET
+  const [appId, appSecret] = await Promise.all([getInstagramAppId(), getInstagramAppSecret()])
   if (!appId || !appSecret) return null
 
   try {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = await getAnthropicKey()
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   // Check plan limits

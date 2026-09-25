@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
+import { getAnthropicKey } from '@/lib/config'
 
 const SCORE_LABELS = ['Claridad', 'Hook', 'CTA', 'Engagement', 'Longitud']
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = await getAnthropicKey()
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   // Check plan limits
