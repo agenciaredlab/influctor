@@ -73,12 +73,12 @@ importante (funcionalidad real rota o a medio construir), después 🟢 menor/co
   crea su propio cliente inline), pero es una trampa para la próxima feature que lo importe.
   Eliminarlo o dejarlo explícitamente marcado como no-usar. Estado: **pendiente**.
 
-- [ ] **YouTube y LinkedIn en `/settings` son tarjetas "Próximamente" sin nada atrás**
-  `src/app/settings/page.tsx:61-76` — sin ruta, sin OAuth, sin soporte real más allá del campo
-  genérico `platform` de `SocialAccount`. Decidir: ¿se construyen de verdad, o se sacan de la
-  pantalla de conexiones hasta que se prioricen? (decisión de producto, no solo código — si hace
-  falta la opinión de Camilo, marcar bloqueado con esa nota en vez de decidir solo). Estado:
-  **pendiente**.
+- [x] **YouTube y LinkedIn en `/settings` eran tarjetas "Próximamente" sin nada atrás** — **hecho (2026-09-27).**
+  Camilo no priorizó construirlas ahora, así que se quitaron de la pantalla de conexiones (opción
+  reversible y de menor riesgo que dejar prometido algo que no existe a usuarios de pago). De paso
+  se corrigió la línea "Integraciones" en Acerca de, que solo mencionaba Instagram pese a que TikTok
+  también está conectado. Verificado logueado en la instancia de prueba: `/settings` sin rastro de
+  "Próximo"/YouTube/LinkedIn.
 
 - [x] **Campo muerto `priceId` en `lib/plans.ts`** — **hecho (2026-09-25)**, campo eliminado (`tsc` confirma que nadie lo leía).
   `src/lib/plans.ts:40,77` definen `priceId: process.env.STRIPE_PRICE_CREATOR/PRO`, pero ni
