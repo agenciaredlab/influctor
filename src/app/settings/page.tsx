@@ -57,26 +57,6 @@ export default async function SettingsPage() {
 
             {/* TikTok */}
             <TikTokConnect />
-
-            {/* YouTube — Coming Soon */}
-            <div className="flex items-center gap-3 p-4 bg-[#0f0f1a] border border-[#1e1e35] rounded-xl opacity-60">
-              <div className="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center text-xl">▶️</div>
-              <div className="flex-1">
-                <div className="font-semibold text-white text-sm">YouTube</div>
-                <div className="text-xs text-gray-500">Próximamente</div>
-              </div>
-              <span className="text-[10px] px-2 py-1 rounded-full bg-gray-700 text-gray-400">Próximo</span>
-            </div>
-
-            {/* LinkedIn — Coming Soon */}
-            <div className="flex items-center gap-3 p-4 bg-[#0f0f1a] border border-[#1e1e35] rounded-xl opacity-60">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 flex items-center justify-center text-xl">💼</div>
-              <div className="flex-1">
-                <div className="font-semibold text-white text-sm">LinkedIn</div>
-                <div className="text-xs text-gray-500">Próximamente</div>
-              </div>
-              <span className="text-[10px] px-2 py-1 rounded-full bg-gray-700 text-gray-400">Próximo</span>
-            </div>
           </div>
         </Card>
 
@@ -90,7 +70,7 @@ export default async function SettingsPage() {
             <p>Versión: <span className="text-white">0.2.0</span></p>
             <p>Stack: <span className="text-white">Next.js 14 · TypeScript · Tailwind · Prisma · Claude AI</span></p>
             <p>Base de datos: <span className="text-white">PostgreSQL</span></p>
-            <p>Integraciones: <span className="text-white">Instagram Graph API (v21.0)</span></p>
+            <p>Integraciones: <span className="text-white">Instagram Graph API (v21.0), TikTok</span></p>
           </div>
         </Card>
       </div>
