@@ -11,6 +11,35 @@ razón). `influctor-lead-builder` es quien actualiza este archivo en cada ciclo.
 **Regla de prioridad:** 🔴 crítico primero (seguridad/fuga de ingresos/datos), después 🟡
 importante (funcionalidad real rota o a medio construir), después 🟢 menor/cosmético.
 
+## 🚀 Feature grande: Equipos (usuarios de empresa) — plan en `cheerful-gathering-dragon.md`
+
+El plan Pro promete "hasta 5 miembros de equipo" y nunca se construyó. Diseño completo aprobado
+por Camilo en `C:\Users\medin\.claude\plans\cheerful-gathering-dragon.md` — no mover ninguna
+relación existente a una tabla "Organization", sino una tabla `TeamMembership` liviana +
+`accountId`/`permissions` resueltos en `getApiSession()`/`getSessionUser()`. 4 fases, cada una su
+propio ciclo:
+
+- [x] **Fase 1 — Base** — **hecho (2026-09-27).** Modelo `TeamMembership` en el schema,
+  `teamMembers` real en `lib/plans.ts` (free:0, creator:0, pro:5), y
+  `resolveAccount()`/`accountId`/`permissions` en `getApiSession()`/`getSessionUser()`
+  (`src/lib/session.ts`). Sin cambios visibles todavía — nada usa `accountId` aún, así que un
+  usuario solo (100% de las cuentas hoy) sigue viendo exactamente lo mismo. Tests nuevos
+  (`src/lib/__tests__/session.test.ts`, 4 casos: solo, miembro activo, pending, revocado). Suite
+  completa: 626/626 verde. `tsc` limpio.
+- [ ] **Fase 2 — Invitar y aceptar.** UI en `/settings` ("Mi Equipo", con `UpgradeGate` solo Pro),
+  `POST/GET/PATCH/DELETE /api/team/*`, email de invitación (reusa `lib/email.ts`), página
+  `/team/accept/[token]`. Limitación v1 explícita: si el email invitado ya tiene cuenta Influctor,
+  se bloquea con mensaje claro (fusionar cuentas existentes queda fuera de alcance). Estado:
+  **pendiente**.
+- [ ] **Fase 3 — Compartir de verdad.** Migrar rutas de recursos (`content`, `deals`,
+  `competitors`, `social/*`, `income`, `goals`, `campaigns`, `marketplace/applications`,
+  `outreach`) y las 4 de IA (`ai/generate`, `ab-test`, `repurpose`, `competitors/research`) de
+  `sessionUser.id` a `sessionUser.accountId`, con chequeo de `permissions` en cada mutación.
+  Estado: **pendiente**.
+- [ ] **Fase 4 — Guardrails.** Confirmar (tests + prueba en vivo) que ningún permiso permite a un
+  miembro cambiar de plan, facturar, eliminar la cuenta, ni invitar/quitar gente — eso es siempre
+  exclusivo del dueño (`ownerId`/`isAdmin`), nunca un flag delegable. Estado: **pendiente**.
+
 ---
 
 ## 🔴 Crítico

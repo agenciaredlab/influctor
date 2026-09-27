@@ -8,6 +8,7 @@ export const PLANS = {
     bg: 'bg-gray-500/10',
     border: 'border-gray-500/20',
     limits: {
+      teamMembers: 0,
       aiGenerationsPerMonth: 5,
       socialAccounts: 1,
       brandDeals: 3,
@@ -42,6 +43,7 @@ export const PLANS = {
     border: 'border-violet-500/30',
     badge: 'Más popular',
     limits: {
+      teamMembers: 0,
       aiGenerationsPerMonth: 200,
       socialAccounts: 3,
       brandDeals: Infinity,
@@ -77,6 +79,7 @@ export const PLANS = {
     bg: 'bg-amber-500/10',
     border: 'border-amber-500/30',
     limits: {
+      teamMembers: 5,
       aiGenerationsPerMonth: Infinity,
       socialAccounts: Infinity,
       brandDeals: Infinity,

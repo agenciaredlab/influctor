@@ -46,6 +46,8 @@ model User {
   socialAccounts SocialAccount[]
   subscription Subscription?
   marketplaceApplications MarketplaceApplication[]
+  ownedTeamMemberships  TeamMembership[] @relation("TeamOwner")
+  teamMembershipAsMember TeamMembership? @relation("TeamMember")
   contracts       Contract[]
   viralAnalyses   ViralAnalysis[]
   apiKeys         ApiKey[]
@@ -550,4 +552,40 @@ model OutreachEntry {
   updatedAt DateTime @updatedAt
 
   @@index([userId, createdAt])
+}
+
+// ========================
+// TEAMS (Pro plan — hasta N usuarios de la misma empresa)
+// ========================
+// No se movio ninguna relacion de negocio a una tabla "Organization" nueva:
+// las rutas de recursos siguen filtrando por un userId (ver lib/session.ts,
+// getApiSession().accountId) que resuelve al dueno cuando quien pide es un
+// miembro de equipo activo, y a si mismo en cualquier otro caso (100% de las
+// cuentas actuales, sin ningun cambio de comportamiento para ellas).
+model TeamMembership {
+  id           String    @id @default(cuid())
+  ownerId      String    // dueno de la cuenta/plan
+  memberId     String?   @unique // null hasta que la persona invitada acepta
+  invitedEmail String    // se invita por email, nunca por id
+  status       String    @default("pending") // pending | active | revoked
+
+  // Permisos que el dueno tilda explicitamente (default false al invitar).
+  // Lo que NUNCA es delegable, sin importar estos flags: cambiar de plan/
+  // facturacion, eliminar la cuenta, invitar o quitar miembros — eso se
+  // chequea con isAdmin/ownerId directo en las rutas, no con un flag de aca.
+  canManageContent         Boolean @default(false)
+  canManageDeals           Boolean @default(false)
+  canManageCompetitors     Boolean @default(false)
+  canConnectSocialAccounts Boolean @default(false)
+  canUseAI                 Boolean @default(false)
+  canViewIncome            Boolean @default(false)
+
+  invitedAt  DateTime  @default(now())
+  acceptedAt DateTime?
+
+  owner  User  @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  member User? @relation("TeamMember", fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@unique([ownerId, invitedEmail])
+  @@index([memberId])
 }
