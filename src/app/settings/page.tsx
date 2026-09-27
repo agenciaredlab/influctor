@@ -3,12 +3,16 @@ import { User, Shield, Link2 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import InstagramConnect from '@/components/social/InstagramConnect'
 import TikTokConnect from '@/components/social/TikTokConnect'
+import UpgradeGate from '@/components/ui/UpgradeGate'
+import TeamSection from '@/components/team/TeamSection'
 import { getSessionUser } from '@/lib/session'
 
 export default async function SettingsPage() {
   let userName = ''
   let userEmail = ''
   let userInitial = 'U'
+  let isAccountOwner = true
+  let plan = 'free'
 
   try {
     const user = await getSessionUser()
@@ -16,6 +20,8 @@ export default async function SettingsPage() {
       userName = user.name ?? ''
       userEmail = user.email
       userInitial = (user.name ?? user.email).charAt(0).toUpperCase()
+      isAccountOwner = user.accountId === user.id
+      plan = user.plan
     }
   } catch {}
 
@@ -59,6 +65,20 @@ export default async function SettingsPage() {
             <TikTokConnect />
           </div>
         </Card>
+
+        {/* Team — only the account owner manages it; a team member never sees this. */}
+        {isAccountOwner && (
+          <Card>
+            <UpgradeGate
+              plan={plan}
+              requiredPlan="pro"
+              feature="Equipos"
+              description="Invita hasta 5 usuarios de tu empresa a trabajar en tu misma cuenta."
+            >
+              <TeamSection />
+            </UpgradeGate>
+          </Card>
+        )}
 
         {/* About */}
         <Card>

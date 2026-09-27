@@ -879,3 +879,55 @@ export function buildPasswordResetHtml(d: PasswordResetData): string {
 export async function sendPasswordResetEmail(data: PasswordResetData) {
   return sendMail({ to: data.userEmail, subject: '🔑 Restablece tu contraseña de Influctor', html: buildPasswordResetHtml(data) })
 }
+
+// ─── Team invite email ──────────────────────────────────────────────────────
+
+export interface TeamInviteData {
+  invitedEmail: string
+  ownerName:    string
+  acceptUrl:    string
+}
+
+export function buildTeamInviteHtml(d: TeamInviteData): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Te invitaron a un equipo en Influctor</title></head>
+<body style="margin:0;padding:0;background:#09090f;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090f">
+    <tr><td align="center" style="padding:32px 16px">
+      <table width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%">
+
+        <tr><td style="background:linear-gradient(135deg,#1e1b4b,#0f0f1e);border-radius:16px 16px 0 0;padding:32px 32px 24px;border:1px solid #1a1a2e;border-bottom:none;text-align:center">
+          <div style="font-size:36px;margin-bottom:12px">👥</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:6px">Te invitaron a un equipo</div>
+          <div style="font-size:13px;color:#9ca3af"><strong style="color:#c4b5fd">${d.ownerName}</strong> te invitó a colaborar en su cuenta de Influctor</div>
+        </td></tr>
+
+        <tr><td style="background:#0f0f1a;padding:28px 32px;border:1px solid #1a1a2e;border-top:none;border-radius:0 0 16px 16px">
+          <p style="font-size:13px;color:#9ca3af;margin:0 0 20px">
+            Creá tu contraseña para empezar a trabajar en el espacio de ${d.ownerName} en Influctor.
+          </p>
+          <div style="text-align:center;margin-bottom:20px">
+            <a href="${d.acceptUrl}"
+               style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px">
+              Aceptar invitación →
+            </a>
+          </div>
+          <div style="background:#1a1a2e;border-radius:8px;padding:10px 14px">
+            <p style="font-size:11px;color:#6b7280;margin:0;word-break:break-all">
+              O copia este enlace: <span style="color:#8b5cf6">${d.acceptUrl}</span>
+            </p>
+          </div>
+        </td></tr>
+        <tr><td style="padding:16px 0;text-align:center;font-size:11px;color:#374151">© ${new Date().getFullYear()} Influctor</td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendTeamInviteEmail(data: TeamInviteData) {
+  return sendMail({ to: data.invitedEmail, subject: `${data.ownerName} te invitó a su equipo en Influctor 👥`, html: buildTeamInviteHtml(data) })
+}

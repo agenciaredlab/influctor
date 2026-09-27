@@ -26,11 +26,17 @@ propio ciclo:
   usuario solo (100% de las cuentas hoy) sigue viendo exactamente lo mismo. Tests nuevos
   (`src/lib/__tests__/session.test.ts`, 4 casos: solo, miembro activo, pending, revocado). Suite
   completa: 626/626 verde. `tsc` limpio.
-- [ ] **Fase 2 — Invitar y aceptar.** UI en `/settings` ("Mi Equipo", con `UpgradeGate` solo Pro),
-  `POST/GET/PATCH/DELETE /api/team/*`, email de invitación (reusa `lib/email.ts`), página
-  `/team/accept/[token]`. Limitación v1 explícita: si el email invitado ya tiene cuenta Influctor,
-  se bloquea con mensaje claro (fusionar cuentas existentes queda fuera de alcance). Estado:
-  **pendiente**.
+- [x] **Fase 2 — Invitar y aceptar.** — **hecho (2026-09-27).**
+  `GET/POST /api/team` (listar/invitar), `PATCH/DELETE /api/team/[id]` (editar permisos/quitar),
+  `GET/POST /api/team/accept/[id]` (ver invitación/aceptarla) — todo por email, nunca por id
+  copiado a mano. Email de invitación (`sendTeamInviteEmail`, mismo patrón que el resto de
+  `lib/email.ts`). UI en `/settings` → "Mi Equipo" (`TeamSection.tsx`, con `UpgradeGate` — solo
+  visible/funcional en Pro, y solo para el dueño de la cuenta, nunca para un miembro). Página
+  pública `/team/accept/[id]` (crea la contraseña e inicia sesión automático con `signIn`, mismo
+  mecanismo que `/login`). Limitación v1 explícita: si el email invitado ya tiene cuenta Influctor,
+  se bloquea con 409 y mensaje claro. El id de la invitación (cuid) funciona como token de
+  aceptación — no se agregó un campo de token aparte, ver nota en el commit. 19 tests nuevos.
+  Suite completa: 645/645 verde. `tsc` limpio.
 - [ ] **Fase 3 — Compartir de verdad.** Migrar rutas de recursos (`content`, `deals`,
   `competitors`, `social/*`, `income`, `goals`, `campaigns`, `marketplace/applications`,
   `outreach`) y las 4 de IA (`ai/generate`, `ab-test`, `repurpose`, `competitors/research`) de
