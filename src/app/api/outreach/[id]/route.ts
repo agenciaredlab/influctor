@@ -10,8 +10,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageDeals) return NextResponse.json({ error: 'No tienes permiso para gestionar el outreach' }, { status: 403 })
 
-    const existing = await ownedEntry(params.id, sessionUser.id)
+    const existing = await ownedEntry(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const data = await req.json()
@@ -34,8 +35,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageDeals) return NextResponse.json({ error: 'No tienes permiso para gestionar el outreach' }, { status: 403 })
 
-    const existing = await ownedEntry(params.id, sessionUser.id)
+    const existing = await ownedEntry(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     await prisma.outreachEntry.delete({ where: { id: params.id } })
@@ -44,4 +46,4 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     console.error('[outreach/[id] DELETE]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+}

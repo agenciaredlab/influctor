@@ -10,8 +10,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canViewIncome) return NextResponse.json({ error: 'No tienes permiso para acceder a los ingresos' }, { status: 403 })
 
-    const existing = await ownedIncome(params.id, sessionUser.id)
+    const existing = await ownedIncome(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const { amount, source, platform, description, date } = await req.json()
@@ -42,8 +43,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canViewIncome) return NextResponse.json({ error: 'No tienes permiso para acceder a los ingresos' }, { status: 403 })
 
-    const existing = await ownedIncome(params.id, sessionUser.id)
+    const existing = await ownedIncome(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     await prisma.income.delete({ where: { id: params.id } })

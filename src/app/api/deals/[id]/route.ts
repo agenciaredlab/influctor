@@ -11,8 +11,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageDeals) return NextResponse.json({ error: 'No tienes permiso para gestionar brand deals' }, { status: 403 })
 
-    const existing = await ownedDeal(params.id, sessionUser.id)
+    const existing = await ownedDeal(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const data = await req.json()
@@ -55,8 +56,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageDeals) return NextResponse.json({ error: 'No tienes permiso para gestionar brand deals' }, { status: 403 })
 
-    const existing = await ownedDeal(params.id, sessionUser.id)
+    const existing = await ownedDeal(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const rawData = await req.json()
@@ -87,8 +89,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageDeals) return NextResponse.json({ error: 'No tienes permiso para gestionar brand deals' }, { status: 403 })
 
-    const existing = await ownedDeal(params.id, sessionUser.id)
+    const existing = await ownedDeal(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     await prisma.brandDeal.delete({ where: { id: params.id } })

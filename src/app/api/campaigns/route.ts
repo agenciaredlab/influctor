@@ -13,12 +13,12 @@ export async function GET(req: NextRequest) {
 
     const [data, total] = await prisma.$transaction([
       prisma.campaign.findMany({
-        where: { userId: sessionUser.id },
+        where: { userId: sessionUser.accountId },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         take: limit,
         skip,
       }),
-      prisma.campaign.count({ where: { userId: sessionUser.id } }),
+      prisma.campaign.count({ where: { userId: sessionUser.accountId } }),
     ])
 
     return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para modificar campañas' }, { status: 403 })
 
     const body = await req.json()
     const {
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const campaign = await prisma.campaign.create({
       data: {
-        userId:      sessionUser.id,
+        userId:      sessionUser.accountId,
         name,
         description: description || null,
         objective:   objective   || 'growth',

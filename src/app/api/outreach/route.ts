@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     const entries = await prisma.outreachEntry.findMany({
-      where:   { userId: sessionUser.id },
+      where:   { userId: sessionUser.accountId },
       orderBy: { sentAt: 'desc' },
       take:    200,
     })
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageDeals) return NextResponse.json({ error: 'No tienes permiso para gestionar el outreach' }, { status: 403 })
 
     const data = await req.json()
     const { brand, contact, template, notes } = data
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const entry = await prisma.outreachEntry.create({
       data: {
-        userId: sessionUser.id,
+        userId: sessionUser.accountId,
         brand:  brand.trim(),
         contact: contact || null,
         template: template || null,
@@ -43,4 +44,4 @@ export async function POST(req: NextRequest) {
     console.error('[outreach POST]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+}

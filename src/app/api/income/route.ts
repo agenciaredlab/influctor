@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canViewIncome) return NextResponse.json({ error: 'No tienes permiso para acceder a los ingresos' }, { status: 403 })
 
     const page  = Math.max(1, parseInt(req.nextUrl.searchParams.get('page')  ?? '1'))
     const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get('limit') ?? '20')))
@@ -13,12 +14,12 @@ export async function GET(req: NextRequest) {
 
     const [data, total] = await prisma.$transaction([
       prisma.income.findMany({
-        where: { userId: sessionUser.id },
+        where: { userId: sessionUser.accountId },
         orderBy: { date: 'desc' },
         take: limit,
         skip,
       }),
-      prisma.income.count({ where: { userId: sessionUser.id } }),
+      prisma.income.count({ where: { userId: sessionUser.accountId } }),
     ])
 
     return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canViewIncome) return NextResponse.json({ error: 'No tienes permiso para acceder a los ingresos' }, { status: 403 })
 
     const data = await req.json()
     const { amount, source, platform, description, date } = data
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     const income = await prisma.income.create({
       data: {
-        userId: sessionUser.id,
+        userId: sessionUser.accountId,
         amount: parseFloat(amount),
         source,
         platform: platform || null,

@@ -6,9 +6,10 @@ export async function POST() {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canConnectSocialAccounts) return NextResponse.json({ error: 'No tienes permiso para gestionar las cuentas sociales' }, { status: 403 })
 
     await prisma.socialAccount.updateMany({
-      where: { userId: sessionUser.id, platform: 'tiktok' },
+      where: { userId: sessionUser.accountId, platform: 'tiktok' },
       data:  { isActive: false },
     })
 

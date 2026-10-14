@@ -10,13 +10,16 @@ export async function GET(
 ) {
   const session = await getApiSession()
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  if (!session.permissions.canManageDeals) {
+    return NextResponse.json({ error: 'No tienes permiso para gestionar oportunidades del marketplace' }, { status: 403 })
+  }
 
   const listing = await prisma.marketplaceListing.findUnique({
     where: { id: params.id },
     select: { postedById: true },
   })
   if (!listing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  if (listing.postedById !== session.id) {
+  if (listing.postedById !== session.accountId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 

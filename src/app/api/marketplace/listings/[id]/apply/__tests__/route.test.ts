@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { POST } from '../route'
 
@@ -15,7 +16,8 @@ vi.mock('@/lib/prisma', () => ({
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator' }
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator', accountId: 'user_1', permissions: OWNER_PERMS }
+
 const LISTING = { id: 'lst_1', status: 'open', applicantsCount: 0 }
 const APPLICATION = { id: 'app_1', listingId: 'lst_1', userId: 'user_1', message: 'I am interested', proposedRate: null, portfolio: null }
 const params = { params: { id: 'lst_1' } }
@@ -112,5 +114,45 @@ describe('POST /api/marketplace/listings/[id]/apply', () => {
       body: JSON.stringify({ message: 'Hello again' }),
     }), params)
     expect(res.status).toBe(409)
+  })
+})
+
+describe('team member (shared workspace) — marketplace apply', () => {
+  const req = () => new NextRequest('http://localhost/api/marketplace/listings/lst_1/apply', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'Hello' }),
+  })
+
+  it('without canManageDeals -> 403, owner not read, no application written', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+    const res = await POST(req(), params)
+    expect(res.status).toBe(403)
+    expect(prisma.user.findUnique).not.toHaveBeenCalled()
+    expect(prisma.marketplaceApplication.upsert).not.toHaveBeenCalled()
+    expect(prisma.marketplaceListing.update).not.toHaveBeenCalled()
+  })
+
+  it('plan gate uses the OWNER plan: owner free -> 403 even if member session says creator', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }, { plan: 'creator' }) as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'owner_1', plan: 'free' } as any)
+    const res = await POST(req(), params)
+    expect(res.status).toBe(403)
+    expect(prisma.marketplaceApplication.upsert).not.toHaveBeenCalled()
+  })
+
+  it('application is created under the OWNER account', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }, { plan: 'free' }) as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'owner_1', plan: 'creator' } as any)
+    vi.mocked(prisma.marketplaceListing.findUnique).mockResolvedValue(LISTING as any)
+    vi.mocked(prisma.marketplaceApplication.upsert).mockResolvedValue(APPLICATION as any)
+    vi.mocked(prisma.marketplaceListing.update).mockResolvedValue(LISTING as any)
+    const res = await POST(req(), params)
+    expect(res.status).toBe(200)
+    expect(prisma.marketplaceApplication.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where:  { listingId_userId: { listingId: 'lst_1', userId: 'owner_1' } },
+        create: expect.objectContaining({ userId: 'owner_1' }),
+      })
+    )
   })
 })

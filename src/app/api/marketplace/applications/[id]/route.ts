@@ -16,6 +16,9 @@ export async function PATCH(
 ) {
   const session = await getApiSession()
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  if (!session.permissions.canManageDeals) {
+    return NextResponse.json({ error: 'No tienes permiso para gestionar oportunidades del marketplace' }, { status: 403 })
+  }
 
   const body = await req.json()
   if (body.action !== 'accept') {
@@ -36,7 +39,7 @@ export async function PATCH(
     },
   })
   if (!application) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  if (application.listing.postedById !== session.id) {
+  if (application.listing.postedById !== session.accountId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
   if (application.paymentStatus === 'paid') {

@@ -10,8 +10,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para gestionar el contenido' }, { status: 403 })
 
-    const existing = await ownedPost(params.id, sessionUser.id)
+    const existing = await ownedPost(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const { title, platform, type, status, scheduledAt, caption, hashtags, hookText, imageUrl, notes } = await req.json()
@@ -39,8 +40,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para gestionar el contenido' }, { status: 403 })
 
-    const existing = await ownedPost(params.id, sessionUser.id)
+    const existing = await ownedPost(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const rawData = await req.json()
@@ -57,8 +59,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para gestionar el contenido' }, { status: 403 })
 
-    const existing = await ownedPost(params.id, sessionUser.id)
+    const existing = await ownedPost(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     await prisma.contentPost.delete({ where: { id: params.id } })

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { getApiSession } from '@/lib/session'
+import { getAccountUser } from '@/lib/account'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
 import { sendAiLimitWarning } from '@/lib/email'
 import { getAnthropicKey } from '@/lib/config'
@@ -126,6 +127,9 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canUseAI) {
+      return NextResponse.json({ error: 'No tienes permiso para usar la IA' }, { status: 403 })
+    }
 
     // 20 AI requests per minute per user+IP
     const { ok, retryAfter } = await rateLimit(rateLimitKey(req, sessionUser.id), { limit: 20, window: 60 })
@@ -150,7 +154,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Check plan limits
-    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
+    // The monthly AI quota is shared per ACCOUNT: read/spend the OWNER's counter,
+    // never the logged-in member's own.
+    const user = await getAccountUser(sessionUser.accountId)
     if (user) {
       const plan = getPlan(user.plan)
       const limit = plan.limits.aiGenerationsPerMonth
@@ -210,11 +216,11 @@ export async function POST(req: NextRequest) {
           limit !== Infinity &&
           prevUsage / limit < 0.8 &&
           newUsage  / limit >= 0.8 &&
-          sessionUser.email
+          user.email
         ) {
           sendAiLimitWarning({
-            userName:  sessionUser.name ?? 'Creador',
-            userEmail: sessionUser.email,
+            userName:  user.name ?? 'Creador',
+            userEmail: user.email,
             used:      newUsage,
             limit,
             planName:  plan.name,

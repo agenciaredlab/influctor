@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { POST } from '../route'
 
@@ -15,7 +16,8 @@ vi.mock('@/lib/prisma', () => ({
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
-const SESSION  = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator' }
+const SESSION  = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator', accountId: 'user_1', permissions: OWNER_PERMS }
+
 const IG_ACCOUNT = {
   id: 'acc_1', userId: 'user_1', platform: 'instagram', isActive: true,
   platformUserId: 'ig_user_123', accessToken: 'valid_token',
@@ -201,5 +203,39 @@ describe('POST /api/social/instagram/publish — ownership and plan', () => {
     }))
     expect(res.status).toBe(401)
     expect(prisma.contentPost.findUnique).not.toHaveBeenCalled()
+  })
+})
+
+describe('team member (shared workspace) — instagram publish', () => {
+  it('without canManageContent -> 403, no post lookup and nothing written', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canConnectSocialAccounts: true }) as any)
+    const res = await POST(makeReq({ postId: 'post_1' }))
+    expect(res.status).toBe(403)
+    expect(prisma.contentPost.findFirst).not.toHaveBeenCalled()
+    expect(prisma.contentPost.update).not.toHaveBeenCalled()
+    expect(prisma.user.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('with canManageContent: post lookup, plan gate and social account all use the OWNER account', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }, { plan: 'free' }) as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue({ ...CONTENT_POST, userId: 'owner_1' } as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ plan: 'creator' } as any)   // OWNER plan (canPublish)
+    vi.mocked(prisma.socialAccount.findFirst).mockResolvedValue(null)                 // stop before calling Meta
+    const res = await POST(makeReq({ postId: 'post_1' }))
+    expect(res.status).toBe(404)
+    expect(prisma.contentPost.findFirst).toHaveBeenCalledWith({ where: { id: 'post_1', userId: 'owner_1' } })
+    expect(prisma.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'owner_1' } }))
+    expect(prisma.socialAccount.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'owner_1', platform: 'instagram', isActive: true },
+    })
+  })
+
+  it('canPublish comes from the OWNER plan: owner free -> 403 even if the member session says pro', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }, { plan: 'pro' }) as any)
+    vi.mocked(prisma.contentPost.findFirst).mockResolvedValue({ ...CONTENT_POST, userId: 'owner_1' } as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ plan: 'free' } as any)
+    const res = await POST(makeReq({ postId: 'post_1' }))
+    expect(res.status).toBe(403)
+    expect(prisma.contentPost.update).not.toHaveBeenCalled()
   })
 })

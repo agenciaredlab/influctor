@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
 import { getInstagramAppId, getInstagramAppSecret, getAppUrl } from '@/lib/config'
 import { getPlan } from '@/lib/plans'
+import { getAccountUser } from '@/lib/account'
 
 const META_BASE = 'https://graph.facebook.com/v21.0'
 
@@ -110,6 +111,11 @@ export async function GET(req: NextRequest) {
     if (!sessionUser) {
       return NextResponse.redirect(`${redirectBase}?instagram_error=not_authenticated`)
     }
+    if (!sessionUser.permissions.canConnectSocialAccounts) {
+      return NextResponse.redirect(
+        `${redirectBase}?instagram_error=${encodeURIComponent('No tienes permiso para conectar cuentas sociales')}`
+      )
+    }
 
     // 1. Exchange auth code for short-lived token
     const { access_token: shortToken } = await exchangeCodeForToken(code, appId, appSecret, resolvedAppUrl)
@@ -151,12 +157,14 @@ export async function GET(req: NextRequest) {
     }
 
     // 4.5 Plan gate — block only if this would be a genuinely NEW connection
-    const limit = getPlan(sessionUser.plan).limits.socialAccounts
+    // Plan limits belong to the account OWNER, not to whoever is logged in.
+    const owner = await getAccountUser(sessionUser.accountId)
+    const limit = getPlan(owner?.plan ?? 'free').limits.socialAccounts
     if (limit !== Infinity) {
       const [activeCount, alreadyConnected] = await Promise.all([
-        prisma.socialAccount.count({ where: { userId: sessionUser.id, isActive: true } }),
+        prisma.socialAccount.count({ where: { userId: sessionUser.accountId, isActive: true } }),
         prisma.socialAccount.findUnique({
-          where: { userId_platform_platformUserId: { userId: sessionUser.id, platform: 'instagram', platformUserId: igUserId } },
+          where: { userId_platform_platformUserId: { userId: sessionUser.accountId, platform: 'instagram', platformUserId: igUserId } },
         }),
       ])
       if (!alreadyConnected && activeCount >= limit) {
@@ -175,7 +183,7 @@ export async function GET(req: NextRequest) {
     await prisma.socialAccount.upsert({
       where: {
         userId_platform_platformUserId: {
-          userId: sessionUser.id,
+          userId: sessionUser.accountId,
           platform: 'instagram',
           platformUserId: igUserId,
         },
@@ -197,7 +205,7 @@ export async function GET(req: NextRequest) {
         scopes: 'instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list',
       },
       create: {
-        userId: sessionUser.id,
+        userId: sessionUser.accountId,
         platform: 'instagram',
         platformUserId: igUserId,
         accessToken: longToken,

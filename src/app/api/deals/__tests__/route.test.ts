@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { GET, POST } from '../route'
 
@@ -6,6 +7,7 @@ vi.mock('@/lib/session', () => ({ getApiSession: vi.fn() }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    user: { findUnique: vi.fn() },
     brandDeal: {
       findMany: vi.fn(),
       create:   vi.fn(),
@@ -17,7 +19,7 @@ vi.mock('@/lib/prisma', () => ({
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', accountId: 'user_1', permissions: OWNER_PERMS }
 
 const DEAL = {
   id: 'deal_1', userId: 'user_1', brand: 'Nike', contact: 'Ana', email: 'ana@nike.com',
@@ -30,6 +32,7 @@ const DEAL = {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(prisma.brandDeal.count).mockResolvedValue(0)
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user_1', plan: 'free' } as any)
 })
 
 describe('GET /api/deals', () => {
@@ -154,11 +157,68 @@ describe('POST /api/deals — plan limit', () => {
   })
 
   it('does not count deals for a plan with unlimited brand deals', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user_1', plan: 'creator' } as any)
     vi.mocked(getApiSession).mockResolvedValue({ ...SESSION, plan: 'creator' } as any)
     vi.mocked(prisma.brandDeal.create).mockResolvedValue(DEAL as any)
     const res = await POST(new NextRequest('http://localhost/api/deals', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: 'Nike' }),
     }))
+    expect(res.status).toBe(201)
+    expect(prisma.brandDeal.count).not.toHaveBeenCalled()
+  })
+})
+
+describe('team member (shared workspace)', () => {
+  const MEMBER = memberSession({ canManageDeals: true })
+  const req = () => new NextRequest('http://localhost/api/deals', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: 'Nike' }),
+  })
+
+  it('GET reads the owner account space (accountId), with no flag needed', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession() as any)
+    vi.mocked(prisma.brandDeal.findMany).mockResolvedValue([])
+    const res = await GET(new NextRequest('http://localhost/api/deals'))
+    expect(res.status).toBe(200)
+    expect(prisma.brandDeal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: 'owner_1' }) })
+    )
+  })
+
+  it('POST creates the deal under the owner account', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(MEMBER as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'owner_1', plan: 'pro' } as any)
+    vi.mocked(prisma.brandDeal.create).mockResolvedValue(DEAL as any)
+    const res = await POST(req())
+    expect(res.status).toBe(201)
+    expect(prisma.brandDeal.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'owner_1' }) })
+    )
+  })
+
+  it('POST without canManageDeals -> 403 and nothing is read or written', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+    const res = await POST(req())
+    expect(res.status).toBe(403)
+    expect(prisma.user.findUnique).not.toHaveBeenCalled()
+    expect(prisma.brandDeal.count).not.toHaveBeenCalled()
+    expect(prisma.brandDeal.create).not.toHaveBeenCalled()
+  })
+
+  it('plan limit comes from the OWNER plan, not the member plan (owner free -> blocked)', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }, { plan: 'pro' }) as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'owner_1', plan: 'free' } as any)
+    vi.mocked(prisma.brandDeal.count).mockResolvedValue(3)
+    const res = await POST(req())
+    expect(res.status).toBe(403)
+    expect(prisma.brandDeal.count).toHaveBeenCalledWith({ where: { userId: 'owner_1' } })
+    expect(prisma.brandDeal.create).not.toHaveBeenCalled()
+  })
+
+  it('plan limit comes from the OWNER plan (owner creator, member free -> allowed, no count)', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }, { plan: 'free' }) as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'owner_1', plan: 'creator' } as any)
+    vi.mocked(prisma.brandDeal.create).mockResolvedValue(DEAL as any)
+    const res = await POST(req())
     expect(res.status).toBe(201)
     expect(prisma.brandDeal.count).not.toHaveBeenCalled()
   })

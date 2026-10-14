@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
+import { getAccountUser } from '@/lib/account'
 
 // GET /api/marketplace/listings?niche=&platform=&type=&status=open
 export async function GET(req: NextRequest) {
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   const sessionUser = await getApiSession()
   const appliedIds = sessionUser
     ? (await prisma.marketplaceApplication.findMany({
-        where: { userId: sessionUser.id },
+        where: { userId: sessionUser.accountId },
         select: { listingId: true, status: true },
       })).reduce<Record<string, string>>((acc, a) => { acc[a.listingId] = a.status; return acc }, {})
     : {}
@@ -43,7 +44,12 @@ export async function POST(req: NextRequest) {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
+    if (!sessionUser.permissions.canManageDeals) {
+      return NextResponse.json({ error: 'No tienes permiso para gestionar oportunidades del marketplace' }, { status: 403 })
+    }
+
+    // Plan gate and ownership both belong to the account OWNER (shared workspace).
+    const user = await getAccountUser(sessionUser.accountId)
     if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
     if (user.plan !== 'pro') {
       return NextResponse.json({ error: 'Publicar oportunidades requiere plan Pro' }, { status: 403 })

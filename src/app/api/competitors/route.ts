@@ -6,11 +6,12 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageCompetitors) return NextResponse.json({ error: 'No tienes permiso para gestionar competidores' }, { status: 403 })
 
     const body = await req.json()
     const competitor = await prisma.competitor.create({
       data: {
-        userId:       sessionUser.id,
+        userId:       sessionUser.accountId,
         name:         body.handle.replace('@', ''),
         handle:       body.handle.startsWith('@') ? body.handle : `@${body.handle}`,
         platform:     body.platform,

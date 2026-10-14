@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
+import { getAccountUser } from '@/lib/account'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPlan } from '@/lib/plans'
 import { rateLimit, rateLimitKey } from '@/lib/rate-limit'
@@ -35,6 +36,9 @@ async function fetchFacebookPage(pageSlug: string): Promise<{ fans: number | nul
 export async function POST(req: NextRequest) {
   const sessionUser = await getApiSession()
   if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  if (!sessionUser.permissions.canUseAI) {
+    return NextResponse.json({ error: 'No tienes permiso para usar la IA' }, { status: 403 })
+  }
 
   // 5 research requests per minute per user+IP (each call hits Anthropic + Facebook)
   const { ok, retryAfter } = await rateLimit(rateLimitKey(req, sessionUser.id), { limit: 5, window: 60 })
@@ -49,7 +53,9 @@ export async function POST(req: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   // Check plan limits
-  const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
+  // The monthly AI quota is shared per ACCOUNT: read/spend the OWNER's counter,
+  // never the logged-in member's own.
+  const user = await getAccountUser(sessionUser.accountId)
   if (user) {
     const plan = getPlan(user.plan)
     const limit = plan.limits.aiGenerationsPerMonth

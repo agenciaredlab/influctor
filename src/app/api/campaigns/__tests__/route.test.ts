@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { GET, POST } from '../route'
 
@@ -18,7 +19,7 @@ vi.mock('@/lib/prisma', () => ({
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', accountId: 'user_1', permissions: OWNER_PERMS }
 
 const CAMPAIGN = {
   id: 'camp_1', userId: 'user_1', name: 'Spring Launch', objective: 'awareness',
@@ -149,5 +150,39 @@ describe('POST /api/campaigns', () => {
       body: JSON.stringify({ name: 'Test', platform: 'instagram', startDate: '2025-01-01' }),
     }))
     expect(res.status).toBe(500)
+  })
+})
+
+describe('team member (shared workspace) — campaigns', () => {
+  const req = () => new NextRequest('http://localhost/api/campaigns', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'C' }),
+  })
+
+  it('GET is open to any active member and reads the owner accountId', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession() as any)
+    vi.mocked(prisma.$transaction).mockResolvedValue([[], 0] as any)
+    const res = await GET(new NextRequest('http://localhost/api/campaigns'))
+    expect(res.status).toBe(200)
+    expect(prisma.campaign.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'owner_1' } })
+    )
+    expect(prisma.campaign.count).toHaveBeenCalledWith({ where: { userId: 'owner_1' } })
+  })
+
+  it('POST without canManageContent -> 403, nothing written', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }) as any)
+    const res = await POST(req())
+    expect(res.status).toBe(403)
+    expect(prisma.campaign.create).not.toHaveBeenCalled()
+  })
+
+  it('POST with canManageContent creates under the owner accountId', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+    vi.mocked(prisma.campaign.create).mockResolvedValue({ id: 'x' } as any)
+    const res = await POST(req())
+    expect(res.status).toBe(201)
+    expect(prisma.campaign.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'owner_1' }) })
+    )
   })
 })

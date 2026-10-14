@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
 import { getPlan } from '@/lib/plans'
+import { getAccountUser } from '@/lib/account'
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     const deals = await prisma.brandDeal.findMany({
-      where:   { userId: sessionUser.id },
+      where:   { userId: sessionUser.accountId },
       orderBy: { createdAt: 'desc' },
       take:    200,
     })
@@ -24,10 +25,13 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageDeals) return NextResponse.json({ error: 'No tienes permiso para gestionar brand deals' }, { status: 403 })
 
-    const limit = getPlan(sessionUser.plan).limits.brandDeals
+    // The plan (and its limits) belong to the account OWNER, not to whoever is logged in.
+    const owner = await getAccountUser(sessionUser.accountId)
+    const limit = getPlan(owner?.plan ?? 'free').limits.brandDeals
     if (limit !== Infinity) {
-      const count = await prisma.brandDeal.count({ where: { userId: sessionUser.id } })
+      const count = await prisma.brandDeal.count({ where: { userId: sessionUser.accountId } })
       if (count >= limit) {
         return NextResponse.json(
           { error: `Tu plan permite hasta ${limit} brand deals. Actualiza tu plan para agregar más.` },
@@ -44,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const deal = await prisma.brandDeal.create({
       data: {
-        userId: sessionUser.id, brand, contact: contact || null, email: email || null,
+        userId: sessionUser.accountId, brand, contact: contact || null, email: email || null,
         phone: phone || null, platform, type, stage: stage || 'outreach',
         value: parseFloat(value || 0), commissionPct: commissionPct ? parseFloat(commissionPct) : null,
         dueDate: dueDate ? new Date(dueDate) : null, description: description || null,

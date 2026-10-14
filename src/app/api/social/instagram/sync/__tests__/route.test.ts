@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { POST, GET } from '../route'
 
@@ -24,7 +25,8 @@ import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { syncInstagramAccount } from '@/lib/instagram-sync'
 
-const SESSION  = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator' }
+const SESSION  = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator', accountId: 'user_1', permissions: OWNER_PERMS }
+
 const ACCOUNT  = {
   id: 'acc_1', userId: 'user_1', platform: 'instagram', isActive: true,
   username: 'testuser', displayName: 'Test User', profilePicture: null,
@@ -114,5 +116,36 @@ describe('GET /api/social/instagram/sync', () => {
     expect(body.connected).toBe(true)
     expect(body.account.username).toBe('testuser')
     expect(body.account.followersCount).toBe(5000)
+  })
+})
+
+describe('team member (shared workspace) — instagram sync', () => {
+  it('POST without canConnectSocialAccounts -> 403, nothing read or synced', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+    const res = await POST(makeReq())
+    expect(res.status).toBe(403)
+    expect(prisma.socialAccount.findFirst).not.toHaveBeenCalled()
+    expect(syncInstagramAccount).not.toHaveBeenCalled()
+  })
+
+  it('POST with canConnectSocialAccounts syncs the OWNER account', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canConnectSocialAccounts: true }) as any)
+    vi.mocked(prisma.socialAccount.findFirst).mockResolvedValue({ ...ACCOUNT, userId: 'owner_1' } as any)
+    const res = await POST(makeReq())
+    expect(res.status).toBe(200)
+    expect(prisma.socialAccount.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: 'owner_1', platform: 'instagram' }) })
+    )
+    expect(syncInstagramAccount).toHaveBeenCalledWith(expect.anything(), 'owner_1')
+  })
+
+  it('GET (status) is open to any member and reads the owner account', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession() as any)
+    vi.mocked(prisma.socialAccount.findFirst).mockResolvedValue(null)
+    const res = await GET(makeReq())
+    expect(res.status).toBe(200)
+    expect(prisma.socialAccount.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: 'owner_1' }) })
+    )
   })
 })

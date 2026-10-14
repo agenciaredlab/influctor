@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
 import { getTikTokClientKey, getTikTokClientSecret, getAppUrl } from '@/lib/config'
 import { getPlan } from '@/lib/plans'
+import { getAccountUser } from '@/lib/account'
 
 const TIKTOK_API = 'https://open.tiktokapis.com/v2'
 
@@ -83,17 +84,24 @@ export async function GET(req: NextRequest) {
     if (!sessionUser) {
       return NextResponse.redirect(`${redirectBase}?tiktok_error=not_authenticated`)
     }
+    if (!sessionUser.permissions.canConnectSocialAccounts) {
+      return NextResponse.redirect(
+        `${redirectBase}?tiktok_error=${encodeURIComponent('No tienes permiso para conectar cuentas sociales')}`
+      )
+    }
 
     const tokens  = await exchangeCode(code, appUrl)
     const profile = await fetchProfile(tokens.access_token)
 
     // Plan gate — block only if this would be a genuinely NEW connection
-    const limit = getPlan(sessionUser.plan).limits.socialAccounts
+    // Plan limits belong to the account OWNER, not to whoever is logged in.
+    const owner = await getAccountUser(sessionUser.accountId)
+    const limit = getPlan(owner?.plan ?? 'free').limits.socialAccounts
     if (limit !== Infinity) {
       const [activeCount, alreadyConnected] = await Promise.all([
-        prisma.socialAccount.count({ where: { userId: sessionUser.id, isActive: true } }),
+        prisma.socialAccount.count({ where: { userId: sessionUser.accountId, isActive: true } }),
         prisma.socialAccount.findUnique({
-          where: { userId_platform_platformUserId: { userId: sessionUser.id, platform: 'tiktok', platformUserId: profile.open_id } },
+          where: { userId_platform_platformUserId: { userId: sessionUser.accountId, platform: 'tiktok', platformUserId: profile.open_id } },
         }),
       ])
       if (!alreadyConnected && activeCount >= limit) {
@@ -132,14 +140,14 @@ export async function GET(req: NextRequest) {
     await prisma.socialAccount.upsert({
       where: {
         userId_platform_platformUserId: {
-          userId:         sessionUser.id,
+          userId:         sessionUser.accountId,
           platform:       'tiktok',
           platformUserId: profile.open_id,
         },
       },
       update: accountData,
       create: {
-        userId:         sessionUser.id,
+        userId:         sessionUser.accountId,
         platform:       'tiktok',
         platformUserId: profile.open_id,
         ...accountData,

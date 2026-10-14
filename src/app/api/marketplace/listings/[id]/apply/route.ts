@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
+import { getAccountUser } from '@/lib/account'
 
 // POST /api/marketplace/listings/[id]/apply
 export async function POST(
@@ -11,7 +12,12 @@ export async function POST(
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
-    const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
+    if (!sessionUser.permissions.canManageDeals) {
+      return NextResponse.json({ error: 'No tienes permiso para aplicar a oportunidades del marketplace' }, { status: 403 })
+    }
+
+    // The application belongs to the account OWNER; so does the plan gate.
+    const user = await getAccountUser(sessionUser.accountId)
     if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
     if (user.plan === 'free') {

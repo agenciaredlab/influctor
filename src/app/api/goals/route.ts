@@ -13,12 +13,12 @@ export async function GET(req: NextRequest) {
 
     const [data, total] = await prisma.$transaction([
       prisma.goal.findMany({
-        where: { userId: sessionUser.id },
+        where: { userId: sessionUser.accountId },
         orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
         take: limit,
         skip,
       }),
-      prisma.goal.count({ where: { userId: sessionUser.id } }),
+      prisma.goal.count({ where: { userId: sessionUser.accountId } }),
     ])
 
     return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para modificar metas' }, { status: 403 })
 
     const body = await req.json()
     const { title, description, category, platform, targetValue, currentValue, unit, deadline, priority, notes } = body
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const goal = await prisma.goal.create({
       data: {
-        userId:       sessionUser.id,
+        userId:       sessionUser.accountId,
         title,
         description:  description  || null,
         category:     category     || 'followers',

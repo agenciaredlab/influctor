@@ -134,10 +134,16 @@ export async function POST(req: NextRequest) {
     } else {
       const sessionUser = await getApiSession()
       if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-      // Scoped to the caller's own posts — never trust a bare postId alone.
-      post = await prisma.contentPost.findFirst({ where: { id: postId, userId: sessionUser.id } })
+      // Publishing is a content action: a team member needs canManageContent.
+      if (!sessionUser.permissions.canManageContent) {
+        return NextResponse.json({ error: 'No tienes permiso para publicar contenido' }, { status: 403 })
+      }
+      // Scoped to the ACCOUNT's posts (shared workspace) — never trust a bare postId alone.
+      post = await prisma.contentPost.findFirst({ where: { id: postId, userId: sessionUser.accountId } })
       if (!post) return NextResponse.json({ error: 'Post no encontrado' }, { status: 404 })
-      actingUserId = sessionUser.id
+      // The plan gate (canPublish) and the connected social account both belong
+      // to the account owner, same as in the cron path (post.userId).
+      actingUserId = sessionUser.accountId
     }
 
     if (post.status === 'published') {

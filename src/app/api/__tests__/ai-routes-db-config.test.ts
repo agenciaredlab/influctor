@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { OWNER_PERMS } from '@/test-utils/team'
 
 // Regression: ab-test, repurpose and competitors/research used to read
 // process.env.ANTHROPIC_API_KEY directly, so an admin who configured the key
@@ -61,7 +62,7 @@ beforeEach(() => {
   delete process.env.ANTHROPIC_API_KEY
   delete process.env.INSTAGRAM_APP_ID
   delete process.env.INSTAGRAM_APP_SECRET
-  vi.mocked(getApiSession).mockResolvedValue({ id: 'user_1', email: 'a@b.c' } as any)
+  vi.mocked(getApiSession).mockResolvedValue({ id: 'user_1', email: 'a@b.c', accountId: 'user_1', permissions: OWNER_PERMS } as any)
   vi.mocked(rateLimit).mockResolvedValue({ ok: true, remaining: 9, retryAfter: 0 })
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user_1', plan: 'pro', aiUsageThisMonth: 0 } as any)
   vi.mocked(prisma.$transaction).mockResolvedValue([] as any)

@@ -9,11 +9,12 @@ export async function PATCH(
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageCompetitors) return NextResponse.json({ error: 'No tienes permiso para gestionar competidores' }, { status: 403 })
 
     const body = await req.json()
 
     const competitor = await prisma.competitor.updateMany({
-      where: { id: params.id, userId: sessionUser.id },
+      where: { id: params.id, userId: sessionUser.accountId },
       data: {
         niche:        body.niche        ?? undefined,
         followers:    body.followers    != null ? Number(body.followers)    : undefined,
@@ -39,9 +40,10 @@ export async function DELETE(
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageCompetitors) return NextResponse.json({ error: 'No tienes permiso para gestionar competidores' }, { status: 403 })
 
     await prisma.competitor.deleteMany({
-      where: { id: params.id, userId: sessionUser.id },
+      where: { id: params.id, userId: sessionUser.accountId },
     })
     return NextResponse.json({ ok: true })
   } catch (err: any) {

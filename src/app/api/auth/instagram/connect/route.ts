@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getApiSession } from '@/lib/session'
 
 // Scopes needed for Instagram Graph API
 // instagram_basic: username, media
@@ -16,6 +17,16 @@ const SCOPES = [
 export async function GET(req: NextRequest) {
   const appId = process.env.INSTAGRAM_APP_ID
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+  const sessionUser = await getApiSession()
+  if (!sessionUser) {
+    return NextResponse.redirect(`${appUrl}/settings?instagram_error=not_authenticated`)
+  }
+  if (!sessionUser.permissions.canConnectSocialAccounts) {
+    return NextResponse.redirect(
+      `${appUrl}/settings?instagram_error=${encodeURIComponent('No tienes permiso para conectar cuentas sociales')}`
+    )
+  }
 
   if (!appId) {
     return NextResponse.json(

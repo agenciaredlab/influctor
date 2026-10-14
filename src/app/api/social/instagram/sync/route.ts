@@ -7,9 +7,10 @@ export async function POST(_req: NextRequest) {
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canConnectSocialAccounts) return NextResponse.json({ error: 'No tienes permiso para gestionar las cuentas sociales' }, { status: 403 })
 
     const account = await prisma.socialAccount.findFirst({
-      where: { userId: sessionUser.id, platform: 'instagram', isActive: true },
+      where: { userId: sessionUser.accountId, platform: 'instagram', isActive: true },
     })
 
     if (!account) {
@@ -27,7 +28,7 @@ export async function POST(_req: NextRequest) {
       )
     }
 
-    const result = await syncInstagramAccount(account, sessionUser.id)
+    const result = await syncInstagramAccount(account, sessionUser.accountId)
     return NextResponse.json({ success: true, synced: result })
   } catch (err: any) {
     console.error('[instagram sync POST]', err)
@@ -42,7 +43,7 @@ export async function GET(_req: NextRequest) {
     if (!sessionUser) return NextResponse.json({ connected: false })
 
     const account = await prisma.socialAccount.findFirst({
-      where: { userId: sessionUser.id, platform: 'instagram', isActive: true },
+      where: { userId: sessionUser.accountId, platform: 'instagram', isActive: true },
       include: {
         snapshots: { orderBy: { date: 'desc' }, take: 30 },
       },
@@ -51,7 +52,7 @@ export async function GET(_req: NextRequest) {
     if (!account) return NextResponse.json({ connected: false })
 
     const recentMedia = await prisma.instagramMedia.findMany({
-      where:   { userId: sessionUser.id },
+      where:   { userId: sessionUser.accountId },
       orderBy: { timestamp: 'desc' },
       take:    12,
     })

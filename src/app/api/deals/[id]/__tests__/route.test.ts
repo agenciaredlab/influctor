@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { PUT, PATCH, DELETE } from '../route'
 
@@ -20,7 +21,7 @@ import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { sendDealStageNotification } from '@/lib/email'
 
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', accountId: 'user_1', permissions: OWNER_PERMS }
 
 const DEAL = {
   id: 'deal_1', userId: 'user_1', brand: 'Nike', contact: null, email: null,
@@ -197,5 +198,30 @@ describe('DELETE /api/deals/[id]', () => {
     vi.mocked(prisma.brandDeal.findFirst).mockRejectedValue(new Error('DB error'))
     const res = await DELETE(new NextRequest('http://localhost/api/deals/deal_1', { method: 'DELETE' }), params)
     expect(res.status).toBe(500)
+  })
+})
+
+describe('team member (shared workspace) — brandDeal', () => {
+  const mutations: Array<[string, () => Promise<Response>]> = [
+    ['PUT', () => PUT(new NextRequest('http://localhost/api/deals/deal_1', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: 'Nike', stage: 'negotiation' }) }), params)],
+    ['PATCH', () => PATCH(new NextRequest('http://localhost/api/deals/deal_1', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand: 'Nike', stage: 'negotiation' }) }), params)],
+    ['DELETE', () => DELETE(new NextRequest('http://localhost/api/deals/deal_1', { method: 'DELETE' }), params)],
+  ]
+
+  it.each(mutations)('%s without canManageDeals -> 403, nothing read or written', async (_n, run) => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+    const res = await run()
+    expect(res.status).toBe(403)
+    expect(prisma.brandDeal.findFirst).not.toHaveBeenCalled()
+    expect(prisma.brandDeal.update).not.toHaveBeenCalled()
+    expect(prisma.brandDeal.delete).not.toHaveBeenCalled()
+  })
+
+  it.each(mutations)('%s with canManageDeals resolves the record under the owner accountId', async (_n, run) => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }) as any)
+    vi.mocked(prisma.brandDeal.findFirst).mockResolvedValue(null)   // 404 is fine: we only assert the scope
+    const res = await run()
+    expect(res.status).toBe(404)
+    expect(prisma.brandDeal.findFirst).toHaveBeenCalledWith({ where: { id: expect.any(String), userId: 'owner_1' } })
   })
 })

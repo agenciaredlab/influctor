@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { GET, POST } from '../sync/route'
 
@@ -20,7 +21,7 @@ import { prisma } from '@/lib/prisma'
 import { getApiSession } from '@/lib/session'
 import { syncTikTokAccount } from '@/lib/tiktok-sync'
 
-const SESSION = { id: 'user_1', email: 'creator@test.com', name: 'Ana' }
+const SESSION = { id: 'user_1', email: 'creator@test.com', name: 'Ana', accountId: 'user_1', permissions: OWNER_PERMS }
 
 function makeAccount(overrides: Partial<{
   id: string; tokenExpiresAt: Date | null; refreshToken: string | null; isActive: boolean

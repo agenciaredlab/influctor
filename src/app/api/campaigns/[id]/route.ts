@@ -10,8 +10,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para modificar campañas' }, { status: 403 })
 
-    const existing = await ownedCampaign(params.id, sessionUser.id)
+    const existing = await ownedCampaign(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const {
@@ -52,8 +53,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para modificar campañas' }, { status: 403 })
 
-    const existing = await ownedCampaign(params.id, sessionUser.id)
+    const existing = await ownedCampaign(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     const rawData = await req.json()
@@ -70,8 +72,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!sessionUser.permissions.canManageContent) return NextResponse.json({ error: 'No tienes permiso para modificar campañas' }, { status: 403 })
 
-    const existing = await ownedCampaign(params.id, sessionUser.id)
+    const existing = await ownedCampaign(params.id, sessionUser.accountId)
     if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
     await prisma.campaign.delete({ where: { id: params.id } })

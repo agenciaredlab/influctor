@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTikTokClientKey, getAppUrl } from '@/lib/config'
+import { getApiSession } from '@/lib/session'
 
 // Scopes:
 //   user.info.basic   — open_id, avatar_url, display_name
@@ -11,6 +12,16 @@ const SCOPES = 'user.info.basic,user.info.stats,video.list,video.publish'
 export async function GET(_req: NextRequest) {
   const clientKey = await getTikTokClientKey()
   const appUrl    = (await getAppUrl()) ?? 'http://localhost:3000'
+
+  const sessionUser = await getApiSession()
+  if (!sessionUser) {
+    return NextResponse.redirect(`${appUrl}/settings?tiktok_error=not_authenticated`)
+  }
+  if (!sessionUser.permissions.canConnectSocialAccounts) {
+    return NextResponse.redirect(
+      `${appUrl}/settings?tiktok_error=${encodeURIComponent('No tienes permiso para conectar cuentas sociales')}`
+    )
+  }
 
   if (!clientKey) {
     return NextResponse.json(

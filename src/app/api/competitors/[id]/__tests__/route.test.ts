@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { PATCH, DELETE } from '../route'
 
@@ -16,7 +17,7 @@ vi.mock('@/lib/prisma', () => ({
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', accountId: 'user_1', permissions: OWNER_PERMS }
 
 const params = { params: { id: 'comp_1' } }
 
@@ -105,5 +106,39 @@ describe('DELETE /api/competitors/[id]', () => {
     expect(prisma.competitor.deleteMany).toHaveBeenCalledWith({
       where: { id: 'comp_1', userId: 'user_1' },
     })
+  })
+})
+
+describe('team member (shared workspace) — competitors/[id]', () => {
+  const patch = () => PATCH(new NextRequest('http://localhost/api/competitors/comp_1', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ niche: 'x' }),
+  }), params)
+  const del = () => DELETE(new NextRequest('http://localhost/api/competitors/comp_1', { method: 'DELETE' }), params)
+
+  it.each([['PATCH', patch], ['DELETE', del]] as Array<[string, () => Promise<Response>]>)(
+    '%s without canManageCompetitors -> 403, DB not touched', async (_n, run) => {
+      vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+      const res = await run()
+      expect(res.status).toBe(403)
+      expect(prisma.competitor.updateMany).not.toHaveBeenCalled()
+      expect(prisma.competitor.deleteMany).not.toHaveBeenCalled()
+    })
+
+  it('PATCH scopes the update to the owner accountId', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageCompetitors: true }) as any)
+    vi.mocked(prisma.competitor.updateMany).mockResolvedValue({ count: 1 } as any)
+    const res = await patch()
+    expect(res.status).toBe(200)
+    expect(prisma.competitor.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'comp_1', userId: 'owner_1' } })
+    )
+  })
+
+  it('DELETE scopes the delete to the owner accountId', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageCompetitors: true }) as any)
+    vi.mocked(prisma.competitor.deleteMany).mockResolvedValue({ count: 1 } as any)
+    const res = await del()
+    expect(res.status).toBe(200)
+    expect(prisma.competitor.deleteMany).toHaveBeenCalledWith({ where: { id: 'comp_1', userId: 'owner_1' } })
   })
 })

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { OWNER_PERMS, NO_PERMS, memberSession } from '@/test-utils/team'
 import { NextRequest } from 'next/server'
 import { GET, POST } from '../route'
 
@@ -20,7 +21,7 @@ vi.mock('@/lib/prisma', () => ({
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 
-const mockSession = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
+const mockSession = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', accountId: 'user_1', permissions: OWNER_PERMS }
 
 const mockIncome = {
   id: 'income_1',
@@ -213,6 +214,49 @@ describe('POST /api/income', () => {
 
     expect(prisma.income.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ amount: 299.99 }) })
+    )
+  })
+})
+
+describe('team member (shared workspace) — income', () => {
+  const postReq = () => new NextRequest('http://localhost/api/income', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: 10, source: 'brand_deal', date: '2025-03-01' }),
+  })
+
+  it('GET without canViewIncome -> 403, income is NOT read', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+    const res = await GET(new NextRequest('http://localhost/api/income'))
+    expect(res.status).toBe(403)
+    expect(prisma.income.findMany).not.toHaveBeenCalled()
+    expect(prisma.income.count).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('GET with canViewIncome reads the owner accountId', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canViewIncome: true }) as any)
+    vi.mocked(prisma.$transaction).mockResolvedValue([[], 0] as any)
+    const res = await GET(new NextRequest('http://localhost/api/income'))
+    expect(res.status).toBe(200)
+    expect(prisma.income.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'owner_1' } })
+    )
+  })
+
+  it('POST without canViewIncome -> 403, nothing written', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageContent: true }) as any)
+    const res = await POST(postReq())
+    expect(res.status).toBe(403)
+    expect(prisma.income.create).not.toHaveBeenCalled()
+  })
+
+  it('POST with canViewIncome creates under the owner accountId', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canViewIncome: true }) as any)
+    vi.mocked(prisma.income.create).mockResolvedValue({ id: 'i' } as any)
+    const res = await POST(postReq())
+    expect(res.status).toBe(201)
+    expect(prisma.income.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 'owner_1' }) })
     )
   })
 })
