@@ -8,19 +8,23 @@ import { getSessionUser } from '@/lib/session'
 
 async function getAnalyticsData() {
   const user = await getSessionUser()
+  // Team members without canViewIncome never get the owner's income read from the DB.
+  const canViewIncome = user.permissions.canViewIncome
 
   const [incomes, metrics, connectedAccounts] = await Promise.all([
-    prisma.income.findMany({
-      where: { userId: user.id, date: { gte: subDays(new Date(), 365) } },
-      orderBy: { date: 'desc' },
-      take: 500,
-    }),
+    canViewIncome
+      ? prisma.income.findMany({
+          where: { userId: user.accountId, date: { gte: subDays(new Date(), 365) } },
+          orderBy: { date: 'desc' },
+          take: 500,
+        })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.income.findMany>>),
     prisma.socialMetric.findMany({
-      where: { userId: user.id, date: { gte: subDays(new Date(), 180) } },
+      where: { userId: user.accountId, date: { gte: subDays(new Date(), 180) } },
       orderBy: { date: 'asc' },
     }),
     prisma.socialAccount.findMany({
-      where: { userId: user.id, isActive: true },
+      where: { userId: user.accountId, isActive: true },
       include: {
         snapshots: {
           where:   { date: { gte: subDays(new Date(), 180) } },
@@ -38,7 +42,7 @@ async function getAnalyticsData() {
   if (igAccountRaw) {
     ;[igMedia, igSnapshots] = await Promise.all([
       prisma.instagramMedia.findMany({
-        where: { userId: user.id },
+        where: { userId: user.accountId },
         orderBy: { likeCount: 'desc' },
         take: 6,
       }),
@@ -78,8 +82,10 @@ async function getAnalyticsData() {
     : null
 
   return {
-    user,
+    // Only what the client needs — never serialize the full User row (hashes, tokens) to the browser.
+    user: { id: user.id, name: user.name, email: user.email },
     incomes,
+    showIncome: canViewIncome,
     metrics: mergedMetrics,
     igAccount,
     igSnapshots: igSnapshots.map(s => ({ ...s, date: s.date.toISOString() })),

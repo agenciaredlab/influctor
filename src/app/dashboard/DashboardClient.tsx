@@ -62,6 +62,8 @@ interface DashboardClientProps {
     incomeChart: any[]
     growthChart: any[]
     connectedAccounts: ConnectedAccount[]
+    /** false when a team member lacks canViewIncome — income amounts are hidden (and not even sent). Defaults to true. */
+    showIncome?: boolean
   }
 }
 
@@ -182,6 +184,7 @@ function AiUsageWidget({ aiUsage }: { aiUsage: DashboardClientProps['data']['aiU
 
 export default function DashboardClient({ data }: DashboardClientProps) {
   const { stats, goals, campaigns, aiUsage, latestByPlatform, recentIncomes, incomeChart, growthChart, connectedAccounts = [] } = data
+  const showIncome = data.showIncome !== false
 
   // Process growth chart data (monthly aggregated)
   const growthData = useMemo(() => {
@@ -236,7 +239,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
   return (
     <div className="space-y-6">
       {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 gap-4 ${showIncome ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <StatCard
           title="Seguidores totales"
           value={stats.totalFollowers}
@@ -252,13 +255,15 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           color="text-emerald-400 bg-emerald-900"
           suffix="%"
         />
-        <StatCard
-          title="Ingresos del mes"
-          value={formatCurrency(stats.monthlyIncome)}
-          change={stats.incomeChange}
-          icon={DollarSign}
-          color="text-amber-400 bg-amber-900"
-        />
+        {showIncome && (
+          <StatCard
+            title="Ingresos del mes"
+            value={formatCurrency(stats.monthlyIncome)}
+            change={stats.incomeChange}
+            icon={DollarSign}
+            color="text-amber-400 bg-amber-900"
+          />
+        )}
         <StatCard
           title="Campañas activas"
           value={stats.activeCampaigns}
@@ -334,7 +339,7 @@ export default function DashboardClient({ data }: DashboardClientProps) {
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Follower Growth Chart */}
-        <Card className="lg:col-span-2">
+        <Card className={showIncome ? 'lg:col-span-2' : 'lg:col-span-3'}>
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-semibold text-white">Crecimiento de Seguidores</h3>
@@ -377,92 +382,96 @@ export default function DashboardClient({ data }: DashboardClientProps) {
         </Card>
 
         {/* Income by Source Pie */}
+        {showIncome && (
+          <Card>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Ingresos por Fuente</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Distribución total</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={140}>
+              <PieChart>
+                <Pie
+                  data={incomeBySource}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={65}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {incomeBySource.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null
+                    return (
+                      <div className="bg-[#0f0f1a] border border-[#1e1e35] rounded-lg p-2 text-xs">
+                        <p style={{ color: payload[0].payload.color }}>{payload[0].name}</p>
+                        <p className="text-white font-medium">{formatCurrency(payload[0].value as number)}</p>
+                      </div>
+                    )
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="space-y-1.5 mt-2">
+              {incomeBySource.slice(0, 4).map((item) => (
+                <div key={item.name} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-gray-400">{item.name}</span>
+                  </div>
+                  <span className="text-gray-300 font-medium">{formatCurrency(item.value)}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Monthly Income Bar */}
+      {showIncome && (
         <Card>
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-sm font-semibold text-white">Ingresos por Fuente</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Distribución total</p>
+              <h3 className="text-sm font-semibold text-white">Ingresos Mensuales</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Evolución de los últimos 6 meses</p>
             </div>
+            <Link href="/analytics" className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
+              Ver análisis completo <ArrowRight size={12} />
+            </Link>
           </div>
-          <ResponsiveContainer width="100%" height={140}>
-            <PieChart>
-              <Pie
-                data={incomeBySource}
-                cx="50%"
-                cy="50%"
-                innerRadius={45}
-                outerRadius={65}
-                paddingAngle={3}
-                dataKey="value"
-              >
-                {incomeBySource.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Pie>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={incomeData} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e1e35" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${formatNumber(v)}`} />
               <Tooltip
-                content={({ active, payload }) => {
+                content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null
                   return (
-                    <div className="bg-[#0f0f1a] border border-[#1e1e35] rounded-lg p-2 text-xs">
-                      <p style={{ color: payload[0].payload.color }}>{payload[0].name}</p>
-                      <p className="text-white font-medium">{formatCurrency(payload[0].value as number)}</p>
+                    <div className="bg-[#0f0f1a] border border-[#1e1e35] rounded-lg p-3 text-xs">
+                      <p className="text-gray-400 mb-1">{label}</p>
+                      <p className="text-violet-400 font-bold">{formatCurrency(payload[0].value as number)}</p>
                     </div>
                   )
                 }}
               />
-            </PieChart>
+              <Bar dataKey="total" fill="url(#barGrad)" radius={[4, 4, 0, 0]} name="Ingresos" />
+              <defs>
+                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7c3aed" />
+                  <stop offset="100%" stopColor="#4c1d95" />
+                </linearGradient>
+              </defs>
+            </BarChart>
           </ResponsiveContainer>
-          <div className="space-y-1.5 mt-2">
-            {incomeBySource.slice(0, 4).map((item) => (
-              <div key={item.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-gray-400">{item.name}</span>
-                </div>
-                <span className="text-gray-300 font-medium">{formatCurrency(item.value)}</span>
-              </div>
-            ))}
-          </div>
         </Card>
-      </div>
-
-      {/* Monthly Income Bar */}
-      <Card>
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Ingresos Mensuales</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Evolución de los últimos 6 meses</p>
-          </div>
-          <Link href="/analytics" className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
-            Ver análisis completo <ArrowRight size={12} />
-          </Link>
-        </div>
-        <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={incomeData} barSize={28}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e1e35" vertical={false} />
-            <XAxis dataKey="month" tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${formatNumber(v)}`} />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length) return null
-                return (
-                  <div className="bg-[#0f0f1a] border border-[#1e1e35] rounded-lg p-3 text-xs">
-                    <p className="text-gray-400 mb-1">{label}</p>
-                    <p className="text-violet-400 font-bold">{formatCurrency(payload[0].value as number)}</p>
-                  </div>
-                )
-              }}
-            />
-            <Bar dataKey="total" fill="url(#barGrad)" radius={[4, 4, 0, 0]} name="Ingresos" />
-            <defs>
-              <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7c3aed" />
-                <stop offset="100%" stopColor="#4c1d95" />
-              </linearGradient>
-            </defs>
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
+      )}
 
       {/* Bottom row: Goals + Campaigns + Platforms */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -584,17 +593,19 @@ export default function DashboardClient({ data }: DashboardClientProps) {
           </div>
 
           {/* Recent Income */}
-          <div className="mt-4 pt-3 border-t border-[#1e1e35]">
-            <h4 className="text-xs font-medium text-gray-400 mb-3">Ingresos recientes</h4>
-            <div className="space-y-2">
-              {recentIncomes.slice(0, 3).map((inc) => (
-                <div key={inc.id} className="flex items-center justify-between">
-                  <div className="text-xs text-gray-500 truncate flex-1">{inc.description || inc.source}</div>
-                  <span className="text-xs font-medium text-emerald-400 ml-2">{formatCurrency(inc.amount)}</span>
-                </div>
-              ))}
+          {showIncome && (
+            <div className="mt-4 pt-3 border-t border-[#1e1e35]">
+              <h4 className="text-xs font-medium text-gray-400 mb-3">Ingresos recientes</h4>
+              <div className="space-y-2">
+                {recentIncomes.slice(0, 3).map((inc) => (
+                  <div key={inc.id} className="flex items-center justify-between">
+                    <div className="text-xs text-gray-500 truncate flex-1">{inc.description || inc.source}</div>
+                    <span className="text-xs font-medium text-emerald-400 ml-2">{formatCurrency(inc.amount)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </Card>
       </div>
     </div>

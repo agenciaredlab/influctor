@@ -16,6 +16,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Progress from '@/components/ui/Progress'
 import Modal from '@/components/ui/Modal'
+import ErrorToast, { readApiError } from '@/components/ui/ErrorToast'
 import Input, { Textarea, Select } from '@/components/ui/Input'
 import {
   formatCurrency, formatNumber, getStatusLabel,
@@ -73,6 +74,7 @@ export default function CampaignsClient({ campaigns: initialCampaigns, userId }:
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CampaignFormData>({
     resolver: zodResolver(campaignSchema),
@@ -132,6 +134,8 @@ export default function CampaignsClient({ campaigns: initialCampaigns, userId }:
           setCampaigns([saved, ...campaigns])
         }
         setShowModal(false)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally {
       setLoading(false)
@@ -147,6 +151,8 @@ export default function CampaignsClient({ campaigns: initialCampaigns, userId }:
     if (res.ok) {
       const updated = await res.json()
       setCampaigns(campaigns.map(c => c.id === camp.id ? updated : c))
+    } else {
+      setActionError(await readApiError(res))
     }
   }
 
@@ -158,6 +164,8 @@ export default function CampaignsClient({ campaigns: initialCampaigns, userId }:
       if (res.ok) {
         setCampaigns(campaigns.filter(c => c.id !== deleteCampaign.id))
         setDeleteCampaign(null)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally {
       setLoading(false)
@@ -178,6 +186,7 @@ export default function CampaignsClient({ campaigns: initialCampaigns, userId }:
 
   return (
     <>
+      <ErrorToast message={actionError} onClose={() => setActionError(null)} />
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[

@@ -12,7 +12,11 @@ export default async function MarketplacePage() {
 
   try {
     const user = await getSessionUser()
-    if (user) plan = user.plan ?? 'free'
+    // Plan belongs to the account owner (== the viewer unless they're a team member).
+    const owner = user.accountId === user.id
+      ? user
+      : await prisma.user.findUnique({ where: { id: user.accountId } })
+    if (owner) plan = owner.plan ?? 'free'
 
     const [rawListings, apps, myRawListings, aggregate] = await Promise.all([
       prisma.marketplaceListing.findMany({
@@ -21,13 +25,13 @@ export default async function MarketplacePage() {
         take: 200,
       }),
       user ? prisma.marketplaceApplication.findMany({
-        where: { userId: user.id },
+        where: { userId: user.accountId },
         include: { listing: true },
         orderBy: { createdAt: 'desc' },
         take: 100,
       }) : Promise.resolve([]),
       user ? prisma.marketplaceListing.findMany({
-        where: { postedById: user.id },
+        where: { postedById: user.accountId },
         include: { _count: { select: { applications: true } } },
         orderBy: { createdAt: 'desc' },
       }) : Promise.resolve([]),

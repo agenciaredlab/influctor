@@ -17,6 +17,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Progress from '@/components/ui/Progress'
 import Modal from '@/components/ui/Modal'
+import ErrorToast, { readApiError } from '@/components/ui/ErrorToast'
 import Input, { Textarea, Select } from '@/components/ui/Input'
 import {
   formatNumber, formatCurrency, calculateProgress,
@@ -82,6 +83,7 @@ export default function GoalsClient({ goals: initialGoals, userId }: GoalsClient
   const [filter, setFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<GoalFormData>({
     resolver: zodResolver(goalSchema),
@@ -130,6 +132,8 @@ export default function GoalsClient({ goals: initialGoals, userId }: GoalsClient
         }
         setShowModal(false)
         reset()
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally {
       setLoading(false)
@@ -144,6 +148,8 @@ export default function GoalsClient({ goals: initialGoals, userId }: GoalsClient
       if (res.ok) {
         setGoals(goals.filter(g => g.id !== deleteGoal.id))
         setDeleteGoal(null)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally {
       setLoading(false)
@@ -159,6 +165,8 @@ export default function GoalsClient({ goals: initialGoals, userId }: GoalsClient
     if (res.ok) {
       const updated = await res.json()
       setGoals(goals.map(g => g.id === goal.id ? updated : g))
+    } else {
+      setActionError(await readApiError(res))
     }
   }
 
@@ -176,6 +184,7 @@ export default function GoalsClient({ goals: initialGoals, userId }: GoalsClient
 
   return (
     <>
+      <ErrorToast message={actionError} onClose={() => setActionError(null)} />
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[

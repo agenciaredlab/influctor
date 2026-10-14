@@ -3,20 +3,20 @@ import MonetizationClient from './MonetizationClient'
 import { prisma } from '@/lib/prisma'
 import { startOfMonth } from 'date-fns'
 import { getSessionUser } from '@/lib/session'
+import Card from '@/components/ui/Card'
+import { Lock } from 'lucide-react'
 
 
-async function getData() {
-  const user = await getSessionUser()
-
+async function getData(user: Awaited<ReturnType<typeof getSessionUser>>) {
   const [incomes, latestMetrics, connectedAccounts] = await Promise.all([
-    prisma.income.findMany({ where: { userId: user.id }, orderBy: { date: 'desc' }, take: 500 }),
+    prisma.income.findMany({ where: { userId: user.accountId }, orderBy: { date: 'desc' }, take: 500 }),
     prisma.socialMetric.findMany({
-      where: { userId: user.id },
+      where: { userId: user.accountId },
       orderBy: { date: 'desc' },
       take: 10,
     }),
     prisma.socialAccount.findMany({
-      where: { userId: user.id, isActive: true },
+      where: { userId: user.accountId, isActive: true },
       include: {
         snapshots: { orderBy: { date: 'desc' }, take: 1 },
       },
@@ -46,11 +46,31 @@ async function getData() {
     .filter(i => new Date(i.date) >= startOfMonth(new Date()))
     .reduce((s, i) => s + i.amount, 0)
 
-  return { user, totalFollowers, avgEngagement, thisMonthIncome, byPlatform, incomes }
+  return { totalFollowers, avgEngagement, thisMonthIncome, byPlatform, incomes }
 }
 
 export default async function MonetizationPage() {
-  const data = await getData()
+  const user = await getSessionUser()
+
+  // Team members without canViewIncome must not see (or even load) the owner's income.
+  if (!user.permissions.canViewIncome) {
+    return (
+      <DashboardLayout
+        title="Centro de Monetización"
+        description="Descubre cuánto vale tu audiencia y cómo maximizar tus ingresos"
+      >
+        <Card className="text-center py-12">
+          <div className="w-12 h-12 rounded-xl bg-violet-900/30 flex items-center justify-center mx-auto mb-4">
+            <Lock size={22} className="text-violet-400" />
+          </div>
+          <h3 className="text-sm font-semibold text-white mb-1">Sin acceso a los ingresos</h3>
+          <p className="text-sm text-gray-500">No tienes permiso para ver los ingresos de esta cuenta.</p>
+        </Card>
+      </DashboardLayout>
+    )
+  }
+
+  const data = await getData(user)
   return (
     <DashboardLayout
       title="Centro de Monetización"

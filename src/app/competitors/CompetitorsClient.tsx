@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import ErrorToast, { readApiError } from '@/components/ui/ErrorToast'
 import { Search, Plus, TrendingUp, TrendingDown, Minus, Eye, Heart, MessageCircle,
   Users, BarChart2, Trash2, Zap, AlertCircle, Pencil, Loader2, X, Check,
   Globe, Sparkles, ExternalLink, ChevronRight } from 'lucide-react'
@@ -148,6 +149,7 @@ export default function CompetitorsClient({ initialCompetitors, plan }: Props) {
   const [editForm, setEditForm]       = useState<MetricForm>(EMPTY_FORM)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // Research state
   const [researchQuery, setResearchQuery] = useState('')
@@ -338,13 +340,25 @@ export default function CompetitorsClient({ initialCompetitors, plan }: Props) {
   }
 
   async function handleDelete(id: string) {
+    const removed = competitors.find(c => c.id === id)
     setCompetitors(prev => prev.filter(c => c.id !== id))
     if (selected?.id === id) setSelected(null)
-    try { await fetch(`/api/competitors/${id}`, { method: 'DELETE' }) } catch {}
+    try {
+      const res = await fetch(`/api/competitors/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        // Optimistic removal failed (e.g. 403 for team members) — put it back and say why.
+        if (removed) setCompetitors(prev => [removed, ...prev])
+        setActionError(await readApiError(res))
+      }
+    } catch {
+      if (removed) setCompetitors(prev => [removed, ...prev])
+      setActionError('No se pudo eliminar. Verifica tu conexión e intenta de nuevo.')
+    }
   }
 
   return (
     <div className="space-y-6">
+      <ErrorToast message={actionError} onClose={() => setActionError(null)} />
       {/* Top bar */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-xs">

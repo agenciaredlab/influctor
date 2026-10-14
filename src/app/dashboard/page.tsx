@@ -3,9 +3,20 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import DashboardClient from './DashboardClient'
 import { subDays, startOfMonth } from 'date-fns'
 import { getSessionUser } from '@/lib/session'
+import { redirect } from 'next/navigation'
 import { getPlan } from '@/lib/plans'
 
-async function getDashboardData(userId: string, user: { name: string; email: string; plan: string; aiUsageThisMonth: number; trialEndsAt: Date | null }) {
+type DashboardOwner = { plan: string; aiUsageThisMonth: number; trialEndsAt: Date | null }
+
+// `userId` is the ACCOUNT id (owner's id when the viewer is a team member), `user` is the
+// logged-in person (greeting), `owner` is the account owner (plan / AI quota / trial — shared by the team).
+// When `canViewIncome` is false no income is read at all, so amounts never reach the client.
+async function getDashboardData(
+  userId: string,
+  user: { name: string; email: string },
+  owner: DashboardOwner,
+  canViewIncome: boolean,
+) {
   const now            = new Date()
   const monthStart     = startOfMonth(now)
   const lastMonthStart = startOfMonth(subDays(monthStart, 1))
@@ -22,11 +33,17 @@ async function getDashboardData(userId: string, user: { name: string; email: str
   ] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 100 }),
     prisma.campaign.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 100 }),
-    prisma.income.aggregate({ where: { userId, date: { gte: monthStart } }, _sum: { amount: true } }),
-    prisma.income.aggregate({ where: { userId, date: { gte: lastMonthStart, lt: monthStart } }, _sum: { amount: true } }),
+    canViewIncome
+      ? prisma.income.aggregate({ where: { userId, date: { gte: monthStart } }, _sum: { amount: true } })
+      : Promise.resolve({ _sum: { amount: null as number | null } }),
+    canViewIncome
+      ? prisma.income.aggregate({ where: { userId, date: { gte: lastMonthStart, lt: monthStart } }, _sum: { amount: true } })
+      : Promise.resolve({ _sum: { amount: null as number | null } }),
     prisma.socialMetric.findMany({ where: { userId, date: { gte: subDays(now, 10) } }, orderBy: { date: 'desc' } }),
     prisma.socialMetric.findMany({ where: { userId, date: { gte: subDays(now, 40), lt: subDays(now, 10) } }, orderBy: { date: 'desc' } }),
-    prisma.income.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 5 }),
+    canViewIncome
+      ? prisma.income.findMany({ where: { userId }, orderBy: { date: 'desc' }, take: 5 })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.income.findMany>>),
     // Active OAuth-connected accounts with their 180d snapshots
     prisma.socialAccount.findMany({
       where:   { userId, isActive: true },
@@ -119,10 +136,12 @@ async function getDashboardData(userId: string, user: { name: string; email: str
   const activeCampaigns = campaigns.filter(c => c.status === 'active').length
   const completedGoals  = goals.filter(g => g.status === 'completed').length
 
-  const incomeChart = await prisma.income.findMany({
-    where: { userId, date: { gte: subDays(now, 180) } },
-    orderBy: { date: 'asc' },
-  })
+  const incomeChart = canViewIncome
+    ? await prisma.income.findMany({
+        where: { userId, date: { gte: subDays(now, 180) } },
+        orderBy: { date: 'asc' },
+      })
+    : []
 
   // Growth chart: merge manual entries (for platforms without a real connection)
   // with real snapshot data (which wins for connected platforms)
@@ -156,9 +175,9 @@ async function getDashboardData(userId: string, user: { name: string; email: str
     }
   })
 
-  const plan      = getPlan(user.plan)
+  const plan      = getPlan(owner.plan)
   const aiLimit   = plan.limits.aiGenerationsPerMonth
-  const aiUsed    = user.aiUsageThisMonth
+  const aiUsed    = owner.aiUsageThisMonth
   const aiPercent = aiLimit === Infinity ? 0 : Math.round((aiUsed / aiLimit) * 100)
 
   return {
@@ -182,23 +201,31 @@ async function getDashboardData(userId: string, user: { name: string; email: str
       percent:     aiPercent,
       planName:    plan.name,
       unlimited:   aiLimit === Infinity,
-      trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
+      trialEndsAt: owner.trialEndsAt?.toISOString() ?? null,
     },
     latestByPlatform,
     recentIncomes,
     incomeChart,
     growthChart,
     connectedAccounts: serializedAccounts,
+    showIncome: canViewIncome,
   }
 }
 
 export default async function DashboardPage() {
   const sessionUser = await getSessionUser()
-  const userRecord  = await prisma.user.findUniqueOrThrow({
-    where:  { id: sessionUser.id },
-    select: { id: true, name: true, email: true, plan: true, aiUsageThisMonth: true, trialEndsAt: true },
-  })
-  const data = await getDashboardData(sessionUser.id, userRecord)
+  // Plan, AI quota and trial belong to the account owner (== the viewer unless they're a team member).
+  const ownerRecord = sessionUser.accountId === sessionUser.id
+    ? sessionUser
+    : await prisma.user.findUnique({ where: { id: sessionUser.accountId } })
+  if (!ownerRecord) redirect('/login')
+
+  const data = await getDashboardData(
+    sessionUser.accountId,
+    { name: sessionUser.name, email: sessionUser.email },
+    ownerRecord,
+    sessionUser.permissions.canViewIncome,
+  )
 
   return (
     <DashboardLayout

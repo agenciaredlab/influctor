@@ -9,9 +9,13 @@ export default async function CompetitorsPage() {
   try {
     const user = await getSessionUser()
     if (user) {
-      plan = user.plan ?? 'free'
+      // Plan belongs to the account owner (== the viewer unless they're a team member).
+      const owner = user.accountId === user.id
+        ? user
+        : await prisma.user.findUnique({ where: { id: user.accountId } })
+      plan = owner?.plan ?? 'free'
       competitors = await prisma.competitor.findMany({
-        where: { userId: user.id },
+        where: { userId: user.accountId },
         orderBy: { createdAt: 'desc' },
         take: 100,
       })

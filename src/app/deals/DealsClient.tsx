@@ -15,6 +15,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
+import ErrorToast, { readApiError } from '@/components/ui/ErrorToast'
 import Input, { Textarea, Select } from '@/components/ui/Input'
 import { formatCurrency, formatNumber, getPlatformEmoji } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -161,6 +162,7 @@ export default function DealsClient({ deals: initialDeals, userId }: DealsClient
   const [editDeal, setEditDeal] = useState<any>(null)
   const [deleteDeal, setDeleteDeal] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<DealFormData>({
@@ -201,6 +203,8 @@ export default function DealsClient({ deals: initialDeals, userId }: DealsClient
         if (editDeal) setDeals(deals.map(d => d.id === editDeal.id ? saved : d))
         else setDeals([saved, ...deals])
         setShowModal(false)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally { setLoading(false) }
   }
@@ -213,6 +217,8 @@ export default function DealsClient({ deals: initialDeals, userId }: DealsClient
     if (res.ok) {
       const updated = await res.json()
       setDeals(deals.map(d => d.id === deal.id ? updated : d))
+    } else {
+      setActionError(await readApiError(res))
     }
   }
 
@@ -222,6 +228,7 @@ export default function DealsClient({ deals: initialDeals, userId }: DealsClient
     try {
       const res = await fetch(`/api/deals/${deleteDeal.id}`, { method: 'DELETE' })
       if (res.ok) { setDeals(deals.filter(d => d.id !== deleteDeal.id)); setDeleteDeal(null) }
+      else setActionError(await readApiError(res))
     } finally { setLoading(false) }
   }
 
@@ -238,6 +245,7 @@ export default function DealsClient({ deals: initialDeals, userId }: DealsClient
 
   return (
     <>
+      <ErrorToast message={actionError} onClose={() => setActionError(null)} />
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[

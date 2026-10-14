@@ -16,31 +16,39 @@ export default async function ReportsPage() {
   try {
     const user = await getSessionUser()
     if (user) {
-      plan = user.plan ?? 'free'
+      // Plan belongs to the account owner (== the viewer unless they're a team member).
+      const owner = user.accountId === user.id
+        ? user
+        : await prisma.user.findUnique({ where: { id: user.accountId } })
+      plan = owner?.plan ?? 'free'
+      const canViewIncome = user.permissions.canViewIncome
 
       const [goals, income, aiUsage, contentPosts, snapshots] = await Promise.all([
         prisma.goal.findMany({
-          where: { userId: user.id, status: 'active' },
+          where: { userId: user.accountId, status: 'active' },
           orderBy: { priority: 'asc' },
           take: 100,
         }),
-        prisma.income.findMany({
-          where: { userId: user.id },
-          orderBy: { date: 'desc' },
-          take: 60,
-        }),
+        // Team members without canViewIncome never get the owner's income read.
+        canViewIncome
+          ? prisma.income.findMany({
+              where: { userId: user.accountId },
+              orderBy: { date: 'desc' },
+              take: 60,
+            })
+          : Promise.resolve([] as Awaited<ReturnType<typeof prisma.income.findMany>>),
         prisma.aiUsage.findMany({
-          where: { userId: user.id },
+          where: { userId: user.accountId },
           orderBy: { createdAt: 'desc' },
           take: 100,
         }),
         prisma.contentPost.findMany({
-          where: { userId: user.id, status: 'published' },
+          where: { userId: user.accountId, status: 'published' },
           orderBy: { publishedAt: 'desc' },
           take: 10,
         }),
         prisma.socialSnapshot.findMany({
-          where: { userId: user.id },
+          where: { userId: user.accountId },
           orderBy: { date: 'desc' },
           take: 14,
         }),

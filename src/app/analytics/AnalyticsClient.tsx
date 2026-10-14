@@ -18,6 +18,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
+import ErrorToast, { readApiError } from '@/components/ui/ErrorToast'
 import Input, { Select } from '@/components/ui/Input'
 import { formatCurrency, formatNumber, getPlatformEmoji, getSourceLabel } from '@/lib/utils'
 
@@ -86,11 +87,14 @@ interface AnalyticsClientProps {
     incomes: any[]
     metrics: any[]
     igAccount?: any
+    /** false when a team member lacks canViewIncome — income is hidden (and not even sent). Defaults to true. */
+    showIncome?: boolean
   }
 }
 
 export default function AnalyticsClient({ data }: AnalyticsClientProps) {
   const { incomes: initialIncomes, metrics: initialMetrics, igAccount } = data
+  const showIncome = data.showIncome !== false
   const [incomes, setIncomes] = useState(initialIncomes)
   const [manualMetrics, setManualMetrics] = useState<any[]>([])
   const [showModal, setShowModal] = useState(false)
@@ -100,8 +104,9 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
   const [deleteIncome, setDeleteIncome] = useState<any>(null)
   const [deleteMetric, setDeleteMetric] = useState<any>(null)
   const [activePlatform, setActivePlatform] = useState<string>('all')
-  const [activeTab, setActiveTab] = useState<'income' | 'growth' | 'engagement' | 'metrics'>('income')
+  const [activeTab, setActiveTab] = useState<'income' | 'growth' | 'engagement' | 'metrics'>(showIncome ? 'income' : 'growth')
   const [loading, setLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [metricsLoaded, setMetricsLoaded] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<IncomeFormData>({
@@ -127,6 +132,8 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
       if (res.ok) {
         setManualMetrics(await res.json())
         setMetricsLoaded(true)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally { setLoading(false) }
   }
@@ -159,6 +166,8 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
         if (editMetric) setManualMetrics(prev => prev.map(m => m.id === editMetric.id ? saved : m))
         else setManualMetrics(prev => [saved, ...prev])
         setShowMetricModal(false)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally { setLoading(false) }
   }
@@ -169,6 +178,7 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
     try {
       const res = await fetch(`/api/metrics/${deleteMetric.id}`, { method: 'DELETE' })
       if (res.ok) { setManualMetrics(prev => prev.filter(m => m.id !== deleteMetric.id)); setDeleteMetric(null) }
+      else setActionError(await readApiError(res))
     } finally { setLoading(false) }
   }
 
@@ -278,6 +288,8 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
           setIncomes([saved, ...incomes])
         }
         setShowModal(false)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally {
       setLoading(false)
@@ -292,6 +304,8 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
       if (res.ok) {
         setIncomes(incomes.filter((i: any) => i.id !== deleteIncome.id))
         setDeleteIncome(null)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally {
       setLoading(false)
@@ -300,54 +314,57 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
 
   return (
     <div className="space-y-6">
+      <ErrorToast message={actionError} onClose={() => setActionError(null)} />
       {/* Income KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {
-            label: 'Ingresos este mes',
-            value: formatCurrency(thisMonthIncome),
-            change: incomeChange,
-            icon: DollarSign,
-            color: 'text-emerald-400',
-          },
-          {
-            label: 'Mes anterior',
-            value: formatCurrency(lastMonthIncome),
-            icon: Calendar,
-            color: 'text-gray-400',
-          },
-          {
-            label: 'Total registrado',
-            value: formatCurrency(totalIncome),
-            icon: TrendingUp,
-            color: 'text-violet-400',
-          },
-          {
-            label: 'Fuentes activas',
-            value: incomeBySource.length.toString(),
-            icon: Filter,
-            color: 'text-blue-400',
-          },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-xl font-bold text-white mb-1">{stat.value}</div>
-                <div className="text-xs text-gray-500">{stat.label}</div>
+      {showIncome && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            {
+              label: 'Ingresos este mes',
+              value: formatCurrency(thisMonthIncome),
+              change: incomeChange,
+              icon: DollarSign,
+              color: 'text-emerald-400',
+            },
+            {
+              label: 'Mes anterior',
+              value: formatCurrency(lastMonthIncome),
+              icon: Calendar,
+              color: 'text-gray-400',
+            },
+            {
+              label: 'Total registrado',
+              value: formatCurrency(totalIncome),
+              icon: TrendingUp,
+              color: 'text-violet-400',
+            },
+            {
+              label: 'Fuentes activas',
+              value: incomeBySource.length.toString(),
+              icon: Filter,
+              color: 'text-blue-400',
+            },
+          ].map((stat) => (
+            <Card key={stat.label}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-xl font-bold text-white mb-1">{stat.value}</div>
+                  <div className="text-xs text-gray-500">{stat.label}</div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <stat.icon size={18} className={stat.color} />
+                  {stat.change !== undefined && (
+                    <div className={`flex items-center gap-0.5 text-xs font-medium ${stat.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {stat.change >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                      {Math.abs(stat.change).toFixed(1)}%
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <stat.icon size={18} className={stat.color} />
-                {stat.change !== undefined && (
-                  <div className={`flex items-center gap-0.5 text-xs font-medium ${stat.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {stat.change >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                    {Math.abs(stat.change).toFixed(1)}%
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Charts tabs */}
       <div className="flex items-center gap-2 border-b border-[#1e1e35] pb-0">
@@ -356,7 +373,7 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
           { key: 'growth',     label: 'Crecimiento' },
           { key: 'engagement', label: 'Engagement' },
           { key: 'metrics',    label: 'Métricas manuales' },
-        ].map((tab) => (
+        ].filter((tab) => showIncome || tab.key !== 'income').map((tab) => (
           <button
             key={tab.key}
             onClick={() => {
@@ -374,7 +391,7 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
         ))}
       </div>
 
-      {activeTab === 'income' && (
+      {showIncome && activeTab === 'income' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Monthly income stacked bar */}
           <Card className="lg:col-span-2">
@@ -552,73 +569,75 @@ export default function AnalyticsClient({ data }: AnalyticsClientProps) {
       )}
 
       {/* Income Table */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-white">Registro de Ingresos</h3>
-          <div className="flex items-center gap-2">
-            <a
-              href="/api/export?type=income"
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-violet-400 px-2.5 py-1.5 rounded-lg border border-[#1e1e35] hover:border-violet-500/40 transition-colors"
-            >
-              <Download size={12} /> CSV
-            </a>
-            <Button onClick={openCreate} icon={<Plus size={14} />} size="sm">
-              Registrar ingreso
-            </Button>
+      {showIncome && (
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-white">Registro de Ingresos</h3>
+            <div className="flex items-center gap-2">
+              <a
+                href="/api/export?type=income"
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-violet-400 px-2.5 py-1.5 rounded-lg border border-[#1e1e35] hover:border-violet-500/40 transition-colors"
+              >
+                <Download size={12} /> CSV
+              </a>
+              <Button onClick={openCreate} icon={<Plus size={14} />} size="sm">
+                Registrar ingreso
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-[#1e1e35]">
-                <th className="pb-3 text-left font-medium">Fecha</th>
-                <th className="pb-3 text-left font-medium">Descripción</th>
-                <th className="pb-3 text-left font-medium">Fuente</th>
-                <th className="pb-3 text-left font-medium">Plataforma</th>
-                <th className="pb-3 text-right font-medium">Monto</th>
-                <th className="pb-3 text-right font-medium"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#1a1a2e]">
-              {incomes.slice(0, 20).map((inc: any) => (
-                <tr key={inc.id} className="hover:bg-white/2 group">
-                  <td className="py-3 text-gray-500 text-xs">
-                    {format(new Date(inc.date), 'd MMM yy', { locale: es })}
-                  </td>
-                  <td className="py-3 text-gray-300 text-xs max-w-xs truncate">
-                    {inc.description || getSourceLabel(inc.source)}
-                  </td>
-                  <td className="py-3">
-                    <Badge
-                      size="sm"
-                      variant="purple"
-                      className="text-[10px]"
-                    >
-                      {getSourceLabel(inc.source)}
-                    </Badge>
-                  </td>
-                  <td className="py-3 text-gray-400 text-xs">
-                    {inc.platform ? `${getPlatformEmoji(inc.platform)} ${inc.platform}` : '-'}
-                  </td>
-                  <td className="py-3 text-right font-semibold text-emerald-400">
-                    {formatCurrency(inc.amount)}
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(inc)} className="p-1 text-gray-500 hover:text-violet-400 rounded">
-                        <Edit2 size={13} />
-                      </button>
-                      <button onClick={() => setDeleteIncome(inc)} className="p-1 text-gray-500 hover:text-red-400 rounded">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-gray-500 uppercase tracking-wider border-b border-[#1e1e35]">
+                  <th className="pb-3 text-left font-medium">Fecha</th>
+                  <th className="pb-3 text-left font-medium">Descripción</th>
+                  <th className="pb-3 text-left font-medium">Fuente</th>
+                  <th className="pb-3 text-left font-medium">Plataforma</th>
+                  <th className="pb-3 text-right font-medium">Monto</th>
+                  <th className="pb-3 text-right font-medium"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody className="divide-y divide-[#1a1a2e]">
+                {incomes.slice(0, 20).map((inc: any) => (
+                  <tr key={inc.id} className="hover:bg-white/2 group">
+                    <td className="py-3 text-gray-500 text-xs">
+                      {format(new Date(inc.date), 'd MMM yy', { locale: es })}
+                    </td>
+                    <td className="py-3 text-gray-300 text-xs max-w-xs truncate">
+                      {inc.description || getSourceLabel(inc.source)}
+                    </td>
+                    <td className="py-3">
+                      <Badge
+                        size="sm"
+                        variant="purple"
+                        className="text-[10px]"
+                      >
+                        {getSourceLabel(inc.source)}
+                      </Badge>
+                    </td>
+                    <td className="py-3 text-gray-400 text-xs">
+                      {inc.platform ? `${getPlatformEmoji(inc.platform)} ${inc.platform}` : '-'}
+                    </td>
+                    <td className="py-3 text-right font-semibold text-emerald-400">
+                      {formatCurrency(inc.amount)}
+                    </td>
+                    <td className="py-3 text-right">
+                      <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEdit(inc)} className="p-1 text-gray-500 hover:text-violet-400 rounded">
+                          <Edit2 size={13} />
+                        </button>
+                        <button onClick={() => setDeleteIncome(inc)} className="p-1 text-gray-500 hover:text-red-400 rounded">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Income Modal */}
       <Modal

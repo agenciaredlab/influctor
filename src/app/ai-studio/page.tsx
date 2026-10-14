@@ -14,14 +14,14 @@ async function getAIHistory(userId: string) {
 
 export default async function AIStudioPage() {
   const user = await getSessionUser()
-  const history = await getAIHistory(user.id)
+  const history = await getAIHistory(user.accountId)
 
   return (
     <DashboardLayout
       title="AI Studio"
       description="Crea contenido increíble con inteligencia artificial"
     >
-      <AIStudioClient userId={user.id} history={history} />
+      <AIStudioClient userId={user.accountId} history={history} />
     </DashboardLayout>
   )
 }

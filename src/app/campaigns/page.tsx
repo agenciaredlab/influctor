@@ -7,7 +7,7 @@ import { getSessionUser } from '@/lib/session'
 async function getCampaigns() {
   const user = await getSessionUser()
   const campaigns = await prisma.campaign.findMany({
-    where: { userId: user.id },
+    where: { userId: user.accountId },
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 100,
   })
@@ -21,7 +21,7 @@ export default async function CampaignsPage() {
       title="Gestión de Campañas"
       description="Crea, gestiona y analiza tus campañas en todas las plataformas"
     >
-      <CampaignsClient campaigns={campaigns} userId={user.id} />
+      <CampaignsClient campaigns={campaigns} userId={user.accountId} />
     </DashboardLayout>
   )
 }

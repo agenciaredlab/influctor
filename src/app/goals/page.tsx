@@ -7,7 +7,7 @@ import { getSessionUser } from '@/lib/session'
 async function getGoals() {
   const user = await getSessionUser()
   const goals = await prisma.goal.findMany({
-    where: { userId: user.id },
+    where: { userId: user.accountId },
     orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
     take: 100,
   })
@@ -22,7 +22,7 @@ export default async function GoalsPage() {
       title="Metas & Objetivos"
       description="Establece y rastrea tus objetivos de crecimiento con evaluación automática"
     >
-      <GoalsClient goals={goals} userId={user.id} />
+      <GoalsClient goals={goals} userId={user.accountId} />
     </DashboardLayout>
   )
 }

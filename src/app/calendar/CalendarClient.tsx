@@ -18,6 +18,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
+import ErrorToast, { readApiError } from '@/components/ui/ErrorToast'
 import Input, { Textarea, Select } from '@/components/ui/Input'
 import { cn, getPlatformEmoji } from '@/lib/utils'
 
@@ -78,6 +79,7 @@ export default function CalendarClient({ posts: initialPosts, userId, igConnecte
   const [editPost, setEditPost] = useState<any>(null)
   const [deletePost, setDeletePost] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [publishingId, setPublishingId] = useState<string | null>(null)
   const [publishResult, setPublishResult] = useState<{ postId: string; success: boolean; message: string } | null>(null)
   const [viewMode, setViewMode] = useState<'month' | 'list'>('month')
@@ -161,6 +163,8 @@ export default function CalendarClient({ posts: initialPosts, userId, igConnecte
         if (editPost) setPosts(posts.map(p => p.id === editPost.id ? saved : p))
         else setPosts([saved, ...posts])
         setShowModal(false)
+      } else {
+        setActionError(await readApiError(res))
       }
     } finally { setLoading(false) }
   }
@@ -171,6 +175,7 @@ export default function CalendarClient({ posts: initialPosts, userId, igConnecte
     try {
       const res = await fetch(`/api/content/${deletePost.id}`, { method: 'DELETE' })
       if (res.ok) { setPosts(posts.filter(p => p.id !== deletePost.id)); setDeletePost(null) }
+      else setActionError(await readApiError(res))
     } finally { setLoading(false) }
   }
 
@@ -188,6 +193,7 @@ export default function CalendarClient({ posts: initialPosts, userId, igConnecte
 
   return (
     <>
+      <ErrorToast message={actionError} onClose={() => setActionError(null)} />
       {/* Publish result banner */}
       {publishResult && (
         <div className={cn(
