@@ -41,7 +41,8 @@ propio ciclo:
   `competitors`, `social/*`, `income`, `goals`, `campaigns`, `marketplace/applications`,
   `outreach`) y las 4 de IA (`ai/generate`, `ab-test`, `repurpose`, `competitors/research`) de
   `sessionUser.id` a `sessionUser.accountId`, con chequeo de `permissions` en cada mutación.
-  Estado: **pendiente**.
+  Estado: **en progreso (2026-10-13)** — backend (rutas API + callbacks OAuth sociales) y
+  frontend (páginas server que leen esos mismos recursos) en paralelo.
 - [ ] **Fase 4 — Guardrails.** Confirmar (tests + prueba en vivo) que ningún permiso permite a un
   miembro cambiar de plan, facturar, eliminar la cuenta, ni invitar/quitar gente — eso es siempre
   exclusivo del dueño (`ownerId`/`isAdmin`), nunca un flag delegable. Estado: **pendiente**.
