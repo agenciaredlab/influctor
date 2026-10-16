@@ -37,15 +37,60 @@ propio ciclo:
   se bloquea con 409 y mensaje claro. El id de la invitación (cuid) funciona como token de
   aceptación — no se agregó un campo de token aparte, ver nota en el commit. 19 tests nuevos.
   Suite completa: 645/645 verde. `tsc` limpio.
-- [ ] **Fase 3 — Compartir de verdad.** Migrar rutas de recursos (`content`, `deals`,
-  `competitors`, `social/*`, `income`, `goals`, `campaigns`, `marketplace/applications`,
-  `outreach`) y las 4 de IA (`ai/generate`, `ab-test`, `repurpose`, `competitors/research`) de
-  `sessionUser.id` a `sessionUser.accountId`, con chequeo de `permissions` en cada mutación.
-  Estado: **en progreso (2026-10-13)** — backend (rutas API + callbacks OAuth sociales) y
-  frontend (páginas server que leen esos mismos recursos) en paralelo.
+- [x] **Fase 3 — Compartir de verdad.** — **hecho (2026-10-16)**, en producción con `3309713`.
+  Rutas de recursos (`content`, `deals`, `competitors`, `social/*` + callbacks/connect OAuth de
+  Instagram/TikTok, `income`, `goals`, `campaigns`, `marketplace` listings/apply/applications,
+  `outreach`) y las 4 de IA (`ai/generate`, `ab-test`, `repurpose`, `competitors/research`)
+  migradas de `sessionUser.id` a `sessionUser.accountId`, con chequeo de permiso antes de tocar la
+  DB. Flags: content/publish/goals/campaigns → `canManageContent`; deals/outreach/marketplace →
+  `canManageDeals`; competitors → `canManageCompetitors`; sync/disconnect/OAuth →
+  `canConnectSocialAccounts`; income → `canViewIncome` (también en GET); IA → `canUseAI`.
+  Lecturas abiertas a cualquier miembro activo, salvo ingresos. Plan, límites y
+  `aiUsageThisMonth` salen siempre del dueño (`src/lib/account.ts::getAccountUser`), con fail-closed
+  si no existe; esto corrigió los límites de content/deals/social, que usaban el plan del miembro.
+  11 páginas server leen por `accountId` y ocultan montos sin `canViewIncome` del lado del servidor.
+  Aceptar/pagar aplicaciones del marketplace (crea un Stripe Checkout) queda solo para el dueño
+  real.
+  Auditoría: 1 crítico encontrado y corregido antes de promover. `analytics/page.tsx` mandaba al
+  cliente la fila `SocialAccount` completa, con `accessToken`/`refreshToken`: con equipos, un miembro
+  habría podido leer el token de Instagram del dueño. Ahora va con `select` explícito, igual que
+  dashboard/monetization/calendar. También se corrigió: `/calendar` y `/deals` sembraban datos
+  demo en la cuenta del dueño cuando entraba un miembro (ahora solo siembra el dueño), y
+  analytics/dashboard mandaban la fila `User` completa con el hash de password (ahora solo
+  `{id,name,email}`). Re-auditoría: 0 críticos.
+  Verificado en vivo (instancia local, imagen de Actions `3309713`): el dueño Pro invita con solo
+  `canManageContent` y el invitado acepta. El miembro ve los posts y deals del dueño, crea un post
+  (queda con `userId` del dueño), `POST /api/deals` da 403 sin cambiar el conteo, ingresos dan 403
+  y la UI muestra "sin acceso", IA sin flag da 403, y `/api/team` da 403. Con `canUseAI` y un mock
+  local de la API de Anthropic (sin key real): el miembro genera, el `aiUsageThisMonth` del dueño
+  sube 0→1, el del miembro queda en 0, y la fila `AiUsage` queda con `userId` del dueño. El 429 se
+  dispara por el cupo del dueño, no por el del miembro.
+  Vitest: 798/798 (antes 645). `tsc`: solo los 2 errores preexistentes en
+  `src/app/api/team/__tests__/route.test.ts`.
+  Menores anotados, sin hacer: botones de escritura visibles sin permiso ("Nuevo Deal", "Ir a
+  pagar" en marketplace; el 403 se ve como toast); el sidebar del miembro muestra "Plan Free"
+  (plan del JWT, no el del dueño); `ContentPost.publishError` guarda texto de la Graph API sin
+  sanitizar (preexistente); `state` de OAuth sin validar (CSRF, preexistente);
+  `auth/instagram/connect` lee env directo en vez de `lib/config` (preexistente); `playbooks/page.tsx`
+  carga `SocialAccount` con `include` aunque no lo pasa al cliente.
 - [ ] **Fase 4 — Guardrails.** Confirmar (tests + prueba en vivo) que ningún permiso permite a un
   miembro cambiar de plan, facturar, eliminar la cuenta, ni invitar/quitar gente — eso es siempre
   exclusivo del dueño (`ownerId`/`isAdmin`), nunca un flag delegable. Estado: **pendiente**.
+  Hallazgos concretos de Fase 3 para arrancar acá:
+  (1) `POST /api/stripe/checkout` y `portal` no bloquean a un miembro (`accountId !== id`): con
+  Stripe real, un miembro iniciaría un checkout sobre su propio `User`. No es una fuga hacia el
+  dueño, pero tiene que dar 403.
+  (2) `resolveAccount()` no valida que el dueño siga `active`: si el admin desactiva al dueño, sus
+  miembros siguen operando y gastando su cupo.
+  (3) Eliminar cuenta de un miembro y de un dueño con equipo.
+  (4) Decidir si las lecturas sensibles (deals con tarifas/contactos, historial `AiUsage` con
+  prompts) deben exigir flag también para leer. Hoy están abiertas por diseño.
+- [ ] **Equipos — rutas fuera de Fase 3 que siguen en `sessionUser.id`.** Un miembro ve vacío (no
+  hay fuga entre cuentas, sus escrituras quedan huérfanas bajo su propio id):
+  `contracts`, `influencer-discovery`, `email/weekly-report`, `cron/weekly-report`, `metrics`,
+  `export` (ej. el CSV de ingresos/deals sale vacío para un miembro; debería usar `accountId` +
+  `canViewIncome`), `viral-lab`, `upload`, `playbooks/progress`, `branding`. Decidir flag por ruta,
+  mismo patrón que Fase 3. Estado: **pendiente**.
 
 ---
 
