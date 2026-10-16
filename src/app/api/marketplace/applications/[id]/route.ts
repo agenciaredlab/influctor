@@ -19,6 +19,12 @@ export async function PATCH(
   if (!session.permissions.canManageDeals) {
     return NextResponse.json({ error: 'No tienes permiso para gestionar oportunidades del marketplace' }, { status: 403 })
   }
+  // Accepting creates a Stripe Checkout and commits a payment: a billing action,
+  // which stays exclusive to the real account owner (never delegable via flags).
+  // Checked before reading the body, the DB or Stripe.
+  if (session.accountId !== session.id) {
+    return NextResponse.json({ error: 'Solo el dueño de la cuenta puede aceptar y pagar aplicaciones' }, { status: 403 })
+  }
 
   const body = await req.json()
   if (body.action !== 'accept') {

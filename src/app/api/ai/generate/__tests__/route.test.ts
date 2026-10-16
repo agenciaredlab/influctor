@@ -239,3 +239,17 @@ describe('ai/generate — 80% warning goes to the account owner', () => {
     )
   })
 })
+
+describe('fail-closed when the account owner row is missing (ai/generate)', () => {
+  it('returns 404 and neither calls Anthropic nor tracks usage', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canUseAI: true }) as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    const res = await POST(makeReq({ type: 'caption', fields: { topic: 'test' } }))
+    expect(res.status).toBe(404)
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 'owner_1' } })
+    expect(mockCreate).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.aiUsage.create).not.toHaveBeenCalled()
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+})

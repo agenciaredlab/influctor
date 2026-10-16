@@ -218,3 +218,17 @@ describe('team member — shared AI quota (repurpose)', () => {
     expect(res.status).toBe(200)
   })
 })
+
+describe('fail-closed when the account owner row is missing (repurpose)', () => {
+  it('returns 404 and neither calls Anthropic nor tracks usage', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canUseAI: true }) as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    const res = await POST(makeReq({ sourceContent: 'text', selectedFormats: ['instagram_caption'] }))
+    expect(res.status).toBe(404)
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 'owner_1' } })
+    expect(mockCreate).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.aiUsage.create).not.toHaveBeenCalled()
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+})

@@ -56,16 +56,18 @@ export async function POST(req: NextRequest) {
   // The monthly AI quota is shared per ACCOUNT: read/spend the OWNER's counter,
   // never the logged-in member's own.
   const user = await getAccountUser(sessionUser.accountId)
-  if (user) {
-    const plan = getPlan(user.plan)
-    const limit = plan.limits.aiGenerationsPerMonth
-    if (limit !== Infinity && user.aiUsageThisMonth >= limit) {
-      return NextResponse.json({
-        error: `Alcanzaste el límite de ${limit} generaciones del plan ${plan.name}.`,
-        limitReached: true,
-        plan: user.plan,
-      }, { status: 429 })
-    }
+  if (!user) {
+    // Fail closed: without the account row there is no plan/quota to enforce or charge.
+    return NextResponse.json({ error: 'Cuenta no encontrada' }, { status: 404 })
+  }
+  const plan = getPlan(user.plan)
+  const limit = plan.limits.aiGenerationsPerMonth
+  if (limit !== Infinity && user.aiUsageThisMonth >= limit) {
+    return NextResponse.json({
+      error: `Alcanzaste el límite de ${limit} generaciones del plan ${plan.name}.`,
+      limitReached: true,
+      plan: user.plan,
+    }, { status: 429 })
   }
 
   const { query } = await req.json()

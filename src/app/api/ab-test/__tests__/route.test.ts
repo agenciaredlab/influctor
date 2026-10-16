@@ -213,12 +213,12 @@ describe('POST /api/ab-test — AI usage tracking', () => {
     expect(res.status).toBe(200)
   })
 
-  it('skips limit check and still calls AI when user is not found in DB', async () => {
+  it('fails closed (404) and does not call AI when the account row is not found in DB', async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
 
     const res = await POST(makeRequest({ mode: 'generate', topic: 'fitness' }))
-    expect(res.status).toBe(200)
-    expect(mockCreate).toHaveBeenCalled()
+    expect(res.status).toBe(404)
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 
   it('pro plan bypasses AI limit despite high usage count', async () => {
@@ -298,5 +298,19 @@ describe('team member — shared AI quota (ab-test)', () => {
     )
     const res = await POST(makeRequest({ mode: 'generate', topic: 'fitness' }))
     expect(res.status).toBe(200)
+  })
+})
+
+describe('fail-closed when the account owner row is missing (ab-test)', () => {
+  it('returns 404 and neither calls Anthropic nor tracks usage', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canUseAI: true }) as any)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    const res = await POST(makeRequest({ mode: 'generate', topic: 'fitness' }))
+    expect(res.status).toBe(404)
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 'owner_1' } })
+    expect(mockCreate).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.aiUsage.create).not.toHaveBeenCalled()
+    expect(prisma.user.update).not.toHaveBeenCalled()
   })
 })

@@ -18,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
 
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
+import { getStripeSecretKey } from '@/lib/config'
 
 const OWNER = { id: 'user_1', email: 'o@x.com', name: 'O', plan: 'pro', accountId: 'user_1', permissions: OWNER_PERMS }
 const params = { params: { id: 'app_1' } }
@@ -65,17 +66,22 @@ describe('PATCH /api/marketplace/applications/[id]', () => {
     expect(prisma.marketplaceApplication.update).not.toHaveBeenCalled()
   })
 
-  it('member with canManageDeals acts on listings posted by the OWNER account', async () => {
+  it('member WITH canManageDeals still gets 403 on accept: payments are owner-only (before DB and Stripe)', async () => {
     vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }) as any)
-    vi.mocked(prisma.marketplaceApplication.findUnique).mockResolvedValue(application('owner_1') as any)
     const res = await PATCH(req(), params)
-    expect(res.status).toBe(503)   // passed ownership (accountId), stopped at Stripe config
+    const body = await res.json()
+    expect(res.status).toBe(403)
+    expect(body.error).toBe('Solo el dueño de la cuenta puede aceptar y pagar aplicaciones')
+    expect(prisma.marketplaceApplication.findUnique).not.toHaveBeenCalled()
+    expect(prisma.marketplaceApplication.update).not.toHaveBeenCalled()
+    expect(getStripeSecretKey).not.toHaveBeenCalled()
   })
 
-  it('member is NOT treated as owner of a listing posted under their own member id', async () => {
-    vi.mocked(getApiSession).mockResolvedValue(memberSession({ canManageDeals: true }) as any)
-    vi.mocked(prisma.marketplaceApplication.findUnique).mockResolvedValue(application('member_1') as any)
+  it('member with every flag on is still not the owner -> 403, nothing touched', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({ ...OWNER_PERMS }) as any)
     const res = await PATCH(req(), params)
     expect(res.status).toBe(403)
+    expect(prisma.marketplaceApplication.findUnique).not.toHaveBeenCalled()
+    expect(getStripeSecretKey).not.toHaveBeenCalled()
   })
 })
