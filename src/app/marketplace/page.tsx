@@ -53,7 +53,8 @@ export default async function MarketplacePage() {
     listings = rawListings.map(serialize)
     myListings = myRawListings.map(serialize)
 
-    myApplications = apps.map(a => ({
+    // paymentIntentId is the Stripe Checkout Session id — keep it server-side, the client never uses it.
+    myApplications = apps.map(({ paymentIntentId: _stripeSessionId, ...a }) => ({
       ...a,
       createdAt: a.createdAt.toISOString(),
       updatedAt: a.updatedAt.toISOString(),

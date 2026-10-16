@@ -8,7 +8,9 @@ async function getPosts() {
   const user = await getSessionUser()
 
   const count = await prisma.contentPost.count({ where: { userId: user.accountId } })
-  if (count === 0) {
+  // Seed demo data only for the real account owner — a team member opening an empty
+  // workspace must not write into (or burn the quota of) the owner's account.
+  if (count === 0 && user.accountId === user.id) {
     const now = new Date()
     const day = (d: number) => new Date(now.getFullYear(), now.getMonth(), d)
     await prisma.contentPost.createMany({
@@ -37,6 +39,7 @@ async function getPosts() {
     }),
     prisma.socialAccount.findFirst({
       where: { userId: user.accountId, platform: 'instagram', isActive: true },
+      select: { id: true }, // only used as a boolean — never load the OAuth tokens
     }),
   ])
   return { user, posts, igConnected: !!igAccount }

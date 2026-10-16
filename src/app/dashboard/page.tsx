@@ -47,7 +47,10 @@ async function getDashboardData(
     // Active OAuth-connected accounts with their 180d snapshots
     prisma.socialAccount.findMany({
       where:   { userId, isActive: true },
-      include: {
+      // Explicit select: never load accessToken / refreshToken / scopes.
+      select: {
+        platform: true, username: true, displayName: true, profilePicture: true,
+        followersCount: true, lastSyncAt: true, id: true,
         snapshots: {
           where:   { date: { gte: subDays(now, 180) } },
           orderBy: { date: 'asc' },

@@ -17,7 +17,9 @@ async function getData(user: Awaited<ReturnType<typeof getSessionUser>>) {
     }),
     prisma.socialAccount.findMany({
       where: { userId: user.accountId, isActive: true },
-      include: {
+      // Explicit select: never load accessToken / refreshToken / scopes.
+      select: {
+        platform: true, followersCount: true,
         snapshots: { orderBy: { date: 'desc' }, take: 1 },
       },
     }),

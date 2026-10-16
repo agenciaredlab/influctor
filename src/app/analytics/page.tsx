@@ -25,7 +25,18 @@ async function getAnalyticsData() {
     }),
     prisma.socialAccount.findMany({
       where: { userId: user.accountId, isActive: true },
-      include: {
+      // Explicit select: NEVER load accessToken / refreshToken / scopes — this data reaches client components.
+      select: {
+        id: true,
+        platform: true,
+        username: true,
+        displayName: true,
+        profilePicture: true,
+        followersCount: true,
+        followingCount: true,
+        mediaCount: true,
+        accountType: true,
+        lastSyncAt: true,
         snapshots: {
           where:   { date: { gte: subDays(new Date(), 180) } },
           orderBy: { date: 'asc' },
@@ -76,7 +87,15 @@ async function getAnalyticsData() {
 
   const igAccount = igAccountRaw
     ? {
-        ...igAccountRaw,
+        id:             igAccountRaw.id,
+        platform:       igAccountRaw.platform,
+        username:       igAccountRaw.username,
+        displayName:    igAccountRaw.displayName,
+        profilePicture: igAccountRaw.profilePicture,
+        followersCount: igAccountRaw.followersCount,
+        followingCount: igAccountRaw.followingCount,
+        mediaCount:     igAccountRaw.mediaCount,
+        accountType:    igAccountRaw.accountType,
         lastSyncAt: igAccountRaw.lastSyncAt?.toISOString() ?? null,
       }
     : null

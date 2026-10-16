@@ -7,9 +7,10 @@ import { getSessionUser } from '@/lib/session'
 async function getDeals() {
   const user = await getSessionUser()
 
-  // Seed some demo deals if empty
+  // Seed some demo deals if empty — only for the real account owner; a team member opening an
+  // empty workspace must not write into (or burn the quota of) the owner's account.
   const count = await prisma.brandDeal.count({ where: { userId: user.accountId } })
-  if (count === 0) {
+  if (count === 0 && user.accountId === user.id) {
     await prisma.brandDeal.createMany({
       data: [
         { userId: user.accountId, brand: 'Nike Running', platform: 'instagram', type: 'reel', stage: 'active', value: 2500, description: '2 Reels + 3 Stories para colección primavera', deliverables: '["2 Reels", "3 Stories", "1 Post"]', tags: 'deportes,running', dueDate: new Date(Date.now() + 7 * 864e5) },
