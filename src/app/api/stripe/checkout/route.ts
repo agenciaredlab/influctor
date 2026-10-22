@@ -9,6 +9,15 @@ export async function POST(req: NextRequest) {
     const sessionUser = await getApiSession()
     if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
+    // Plan/billing is never delegable to a team member (no permission flag
+    // grants it): only the real account owner can start a checkout.
+    if (sessionUser.accountId !== sessionUser.id) {
+      return NextResponse.json(
+        { error: 'Solo el dueño de la cuenta puede gestionar el plan y la facturación' },
+        { status: 403 }
+      )
+    }
+
     const { planId } = await req.json()
 
     if (!planId || planId === 'free') {

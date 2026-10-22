@@ -17,6 +17,7 @@ vi.mock('@/lib/config', () => ({ getAppUrl: vi.fn().mockResolvedValue('https://a
 import { getApiSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { sendTeamInviteEmail } from '@/lib/email'
+import { memberSession } from '@/test-utils/team'
 
 const OWNER_SESSION = { id: 'owner_1', email: 'owner@x.com', accountId: 'owner_1', permissions: {} }
 const MEMBER_SESSION = { id: 'member_1', email: 'member@x.com', accountId: 'owner_1', permissions: {} }
@@ -55,6 +56,28 @@ describe('GET /api/team', () => {
     expect(prisma.teamMembership.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { ownerId: 'owner_1' } })
     )
+  })
+})
+
+const ALL_PERMS_TRUE = {
+  canManageContent: true, canManageDeals: true, canManageCompetitors: true,
+  canConnectSocialAccounts: true, canUseAI: true, canViewIncome: true,
+}
+
+describe('/api/team — never delegable: a member with ALL six permissions is still blocked', () => {
+  it('GET returns 403 and does not read the team', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession(ALL_PERMS_TRUE) as any)
+    const res = await GET()
+    expect(res.status).toBe(403)
+    expect(prisma.teamMembership.findMany).not.toHaveBeenCalled()
+  })
+
+  it('POST (invite) returns 403 with no DB writes and no invite email', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession(ALL_PERMS_TRUE) as any)
+    const res = await POST(inviteReq({ email: 'new@x.com', ...ALL_PERMS_TRUE }))
+    expect(res.status).toBe(403)
+    expect(prisma.teamMembership.create).not.toHaveBeenCalled()
+    expect(sendTeamInviteEmail).not.toHaveBeenCalled()
   })
 })
 

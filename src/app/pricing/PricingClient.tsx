@@ -17,11 +17,14 @@ interface Props {
     status: string
   } | null
   aiUsed: number
+  /** True when the logged-in person is a member of someone else's team: the plan/billing belong to the owner. */
+  isTeamMember?: boolean
+  ownerName?: string | null
 }
 
 const PLAN_ICONS = { free: Zap, creator: Star, pro: Crown }
 
-export default function PricingClient({ currentPlan, planStatus, subscription, aiUsed }: Props) {
+export default function PricingClient({ currentPlan, planStatus, subscription, aiUsed, isTeamMember = false, ownerName = null }: Props) {
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
@@ -41,7 +44,24 @@ export default function PricingClient({ currentPlan, planStatus, subscription, a
     }
   }, [searchParams])
 
+  // Reads the `error` of a failed billing call. A 403 means the caller is a
+  // team member (only the owner manages billing); show the server's message.
+  async function readBillingResponse(res: Response) {
+    let data: any = null
+    try { data = await res.json() } catch {}
+    if (!res.ok) {
+      throw new Error(
+        data?.error ||
+        (res.status === 403
+          ? 'Solo el dueño de la cuenta puede gestionar el plan y la facturación.'
+          : 'No se pudo completar la operación. Inténtalo de nuevo.')
+      )
+    }
+    return data
+  }
+
   async function subscribe(planId: string) {
+    if (isTeamMember) return
     setLoading(planId)
     setError('')
     try {
@@ -50,8 +70,7 @@ export default function PricingClient({ currentPlan, planStatus, subscription, a
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      const data = await readBillingResponse(res)
       window.location.href = data.url
     } catch (e: any) {
       setError(e.message)
@@ -60,12 +79,12 @@ export default function PricingClient({ currentPlan, planStatus, subscription, a
   }
 
   async function openPortal() {
+    if (isTeamMember) return
     setLoading('portal')
     setError('')
     try {
       const res = await fetch('/api/stripe/portal', { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      const data = await readBillingResponse(res)
       window.location.href = data.url
     } catch (e: any) {
       setError(e.message)
@@ -94,8 +113,19 @@ export default function PricingClient({ currentPlan, planStatus, subscription, a
         </div>
       )}
 
+      {/* Team member notice: plan and billing are managed by the account owner */}
+      {isTeamMember && (
+        <div className="flex items-start gap-3 p-4 bg-violet-500/10 border border-violet-500/20 rounded-xl">
+          <Shield size={16} className="text-violet-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-violet-300">
+            El plan y la facturación de esta cuenta los gestiona el dueño{ownerName ? ` (${ownerName})` : ''}.
+            Pídele que cambie el plan si necesitas más capacidad.
+          </p>
+        </div>
+      )}
+
       {/* Current plan status */}
-      {currentPlan !== 'free' && subscription && (
+      {!isTeamMember && currentPlan !== 'free' && subscription && (
         <div className="bg-gradient-to-r from-violet-900/30 to-purple-900/20 border border-violet-500/20 rounded-2xl p-5">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
@@ -165,7 +195,7 @@ export default function PricingClient({ currentPlan, planStatus, subscription, a
               {isCurrent && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full">
-                    Tu plan actual
+                    {isTeamMember ? 'Plan de la cuenta' : 'Tu plan actual'}
                   </span>
                 </div>
               )}
@@ -211,6 +241,10 @@ export default function PricingClient({ currentPlan, planStatus, subscription, a
               ) : plan.id === 'free' ? (
                 <div className="py-2.5 rounded-xl border border-[#1a1a2e] text-gray-500 text-sm text-center">
                   Plan gratuito
+                </div>
+              ) : isTeamMember ? (
+                <div className="py-2.5 rounded-xl border border-[#1a1a2e] text-gray-500 text-xs text-center">
+                  Lo gestiona el dueño de la cuenta
                 </div>
               ) : (
                 <button

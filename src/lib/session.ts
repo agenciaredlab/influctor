@@ -34,16 +34,27 @@ const OWNER_PERMISSIONS: TeamPermissions = {
  *   shared AiUsage, shared content/deals/etc. — see lib/plans.ts limits),
  *   `permissions` are exactly what the owner ticked on the TeamMembership row.
  *
+ * Returns `null` (fail-closed) when the user is an active member of a team
+ * whose owner has been deactivated by an admin (`User.active = false`): the
+ * member must not keep operating on — or spending the quota of — a disabled
+ * account, and must NOT fall back to operating their own empty account with
+ * owner permissions (that would unlock checkout/team on their own user).
+ * Callers translate `null` into 401 (API) / redirect to /login (pages).
+ *
  * Callers that need the owner's plan/limits should fetch
  * `prisma.user.findUnique({ where: { id: accountId } })`, same pattern
  * already used everywhere for plan checks — this only resolves *whose*
  * account it is, not the account's data.
  */
-export async function resolveAccount(userId: string): Promise<{ accountId: string; permissions: TeamPermissions }> {
+export async function resolveAccount(
+  userId: string,
+): Promise<{ accountId: string; permissions: TeamPermissions } | null> {
   const membership = await prisma.teamMembership.findUnique({
-    where: { memberId: userId },
+    where:   { memberId: userId },
+    include: { owner: { select: { active: true } } },
   })
   if (membership && membership.status === 'active') {
+    if (membership.owner?.active !== true) return null
     return {
       accountId: membership.ownerId,
       permissions: {
@@ -75,8 +86,9 @@ export async function getSessionUser() {
   if (!user) redirect('/login')
   if (!user.active) redirect('/login')
 
-  const { accountId, permissions } = await resolveAccount(user.id)
-  return { ...user, accountId, permissions }
+  const account = await resolveAccount(user.id)
+  if (!account) redirect('/login') // team owner deactivated: fail closed, same as !user.active
+  return { ...user, accountId: account.accountId, permissions: account.permissions }
 }
 
 /**
@@ -85,7 +97,7 @@ export async function getSessionUser() {
  * `Authorization: Bearer <key>` API key (see lib/apiKey.ts) — meant
  * for scripted/automated access, never for browser login.
  * Returns { id, email, name, plan, isAdmin, accountId, permissions } or null
- * if not authenticated. `id` is always the actual logged-in person; use
+ * if not authenticated (or the user / their team owner is deactivated). `id` is always the actual logged-in person; use
  * `accountId` (not `id`) to scope shared resources — see resolveAccount above.
  */
 export async function getApiSession() {
@@ -102,7 +114,9 @@ export async function getApiSession() {
 
     prisma.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch(() => {})
 
-    const { accountId, permissions } = await resolveAccount(key.user.id)
+    const account = await resolveAccount(key.user.id)
+    if (!account) return null // team owner deactivated
+    const { accountId, permissions } = account
     return {
       id:      key.user.id,
       email:   key.user.email,
@@ -117,6 +131,14 @@ export async function getApiSession() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return null
 
-  const { accountId, permissions } = await resolveAccount(session.user.id)
-  return { ...session.user, accountId, permissions }
+  // The JWT outlives an admin deactivating the user (or deleting them), so
+  // re-check `active` on every API call — the API-key path and getSessionUser()
+  // already do. `session.user.id` is the impersonation target while impersonating.
+  const [self, account] = await Promise.all([
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { active: true } }),
+    resolveAccount(session.user.id),
+  ])
+  if (!self?.active) return null
+  if (!account) return null // team owner deactivated
+  return { ...session.user, accountId: account.accountId, permissions: account.permissions }
 }

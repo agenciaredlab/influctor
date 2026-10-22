@@ -6,6 +6,18 @@ import { getStripeSecretKey, getAppUrl } from '@/lib/config'
 
 export async function POST(_req: NextRequest) {
   try {
+    const sessionUser = await getApiSession()
+    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    // Billing portal (change plan / cancel / payment methods) is never
+    // delegable to a team member: only the real account owner.
+    if (sessionUser.accountId !== sessionUser.id) {
+      return NextResponse.json(
+        { error: 'Solo el dueño de la cuenta puede gestionar el plan y la facturación' },
+        { status: 403 }
+      )
+    }
+
     const stripeKey = await getStripeSecretKey()
     if (!stripeKey) {
       return NextResponse.json(
@@ -13,9 +25,6 @@ export async function POST(_req: NextRequest) {
         { status: 503 }
       )
     }
-
-    const sessionUser = await getApiSession()
-    if (!sessionUser) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     const user = await prisma.user.findUnique({ where: { id: sessionUser.id } })
     if (!user?.stripeCustomerId) {

@@ -32,10 +32,11 @@ vi.mock('@/lib/config', () => ({
 }))
 
 import { getApiSession }                                from '@/lib/session'
+import { memberSession }                                from '@/test-utils/team'
 import { prisma }                                       from '@/lib/prisma'
 import { getStripeSecretKey, getStripePriceCreator, getStripePricePro } from '@/lib/config'
 
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free' }
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', accountId: 'user_1' }
 const USER    = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'free', stripeCustomerId: null }
 
 function makeReq(body: unknown) {
@@ -56,6 +57,21 @@ beforeEach(() => {
 })
 
 describe('POST /api/stripe/checkout', () => {
+  it('returns 403 for a team member even with every permission ticked, and touches nothing', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({
+      canManageContent: true, canManageDeals: true, canManageCompetitors: true,
+      canConnectSocialAccounts: true, canUseAI: true, canViewIncome: true,
+    }) as any)
+    const res = await POST(makeReq({ planId: 'pro' }))
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Solo el dueño de la cuenta puede gestionar el plan y la facturación' })
+    expect(getStripeSecretKey).not.toHaveBeenCalled()
+    expect(mockCreateCustomer).not.toHaveBeenCalled()
+    expect(mockCreateSession).not.toHaveBeenCalled()
+    expect(prisma.user.findUnique).not.toHaveBeenCalled()
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+
   it('returns 401 when not authenticated', async () => {
     vi.mocked(getApiSession).mockResolvedValue(null)
     const res = await POST(makeReq({ planId: 'creator' }))

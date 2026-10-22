@@ -28,10 +28,11 @@ vi.mock('@/lib/config', () => ({
 }))
 
 import { getApiSession }      from '@/lib/session'
+import { memberSession }      from '@/test-utils/team'
 import { prisma }             from '@/lib/prisma'
 import { getStripeSecretKey } from '@/lib/config'
 
-const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator' }
+const SESSION = { id: 'user_1', email: 'test@example.com', name: 'Test', plan: 'creator', accountId: 'user_1' }
 
 function makeReq() {
   return new NextRequest('http://localhost/api/stripe/portal', { method: 'POST' })
@@ -44,6 +45,26 @@ beforeEach(() => {
 })
 
 describe('POST /api/stripe/portal', () => {
+  it('returns 403 for a team member even with every permission ticked, and touches nothing', async () => {
+    vi.mocked(getApiSession).mockResolvedValue(memberSession({
+      canManageContent: true, canManageDeals: true, canManageCompetitors: true,
+      canConnectSocialAccounts: true, canUseAI: true, canViewIncome: true,
+    }) as any)
+    const res = await POST(makeReq())
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Solo el dueño de la cuenta puede gestionar el plan y la facturación' })
+    expect(getStripeSecretKey).not.toHaveBeenCalled()
+    expect(prisma.user.findUnique).not.toHaveBeenCalled()
+    expect(mockCreatePortalSession).not.toHaveBeenCalled()
+  })
+
+  it('checks session before Stripe config: unauthenticated gets 401 even when Stripe is not configured', async () => {
+    vi.mocked(getStripeSecretKey).mockResolvedValue('')
+    vi.mocked(getApiSession).mockResolvedValue(null)
+    const res = await POST(makeReq())
+    expect(res.status).toBe(401)
+  })
+
   it('returns 503 when Stripe key is not set', async () => {
     vi.mocked(getStripeSecretKey).mockResolvedValue('')
     vi.mocked(getApiSession).mockResolvedValue(SESSION as any)
