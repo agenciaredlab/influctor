@@ -10,8 +10,11 @@ export default async function MarketplacePage() {
   let plan = 'free'
   let stats = { open: 0, brands: 0, totalBudget: 0 }
 
+  // getSessionUser() redirects to /login (NEXT_REDIRECT); keep it outside the try/catch
+  // below (which only provides a fallback for the data queries) or the redirect is swallowed.
+  const user = await getSessionUser()
+
   try {
-    const user = await getSessionUser()
     // Plan belongs to the account owner (== the viewer unless they're a team member).
     const owner = user.accountId === user.id
       ? user
@@ -24,17 +27,17 @@ export default async function MarketplacePage() {
         include: { _count: { select: { applications: true } } },
         take: 200,
       }),
-      user ? prisma.marketplaceApplication.findMany({
+      prisma.marketplaceApplication.findMany({
         where: { userId: user.accountId },
         include: { listing: true },
         orderBy: { createdAt: 'desc' },
         take: 100,
-      }) : Promise.resolve([]),
-      user ? prisma.marketplaceListing.findMany({
+      }),
+      prisma.marketplaceListing.findMany({
         where: { postedById: user.accountId },
         include: { _count: { select: { applications: true } } },
         orderBy: { createdAt: 'desc' },
-      }) : Promise.resolve([]),
+      }),
       prisma.marketplaceListing.aggregate({
         where: { status: 'open' },
         _count: { id: true },

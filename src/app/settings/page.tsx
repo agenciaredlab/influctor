@@ -8,22 +8,14 @@ import TeamSection from '@/components/team/TeamSection'
 import { getSessionUser } from '@/lib/session'
 
 export default async function SettingsPage() {
-  let userName = ''
-  let userEmail = ''
-  let userInitial = 'U'
-  let isAccountOwner = true
-  let plan = 'free'
-
-  try {
-    const user = await getSessionUser()
-    if (user) {
-      userName = user.name ?? ''
-      userEmail = user.email
-      userInitial = (user.name ?? user.email).charAt(0).toUpperCase()
-      isAccountOwner = user.accountId === user.id
-      plan = user.plan
-    }
-  } catch {}
+  // getSessionUser() redirects to /login (NEXT_REDIRECT) when there is no valid
+  // session -- it must not be wrapped in a try/catch that would swallow it.
+  const user = await getSessionUser()
+  const userName = user.name ?? ''
+  const userEmail = user.email
+  const userInitial = (user.name ?? user.email).charAt(0).toUpperCase()
+  const isAccountOwner = user.accountId === user.id
+  const plan = user.plan
 
   return (
     <DashboardLayout

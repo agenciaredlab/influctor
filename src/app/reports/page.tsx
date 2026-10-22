@@ -13,78 +13,79 @@ export default async function ReportsPage() {
     snapshots: [] as any[],
   }
 
+  // getSessionUser() redirects to /login (NEXT_REDIRECT); keep it outside the try/catch
+  // below (fallback for the data queries only) or the redirect is swallowed.
+  const user = await getSessionUser()
+
   try {
-    const user = await getSessionUser()
-    if (user) {
-      // Plan belongs to the account owner (== the viewer unless they're a team member).
-      const owner = user.accountId === user.id
-        ? user
-        : await prisma.user.findUnique({ where: { id: user.accountId } })
-      plan = owner?.plan ?? 'free'
-      const canViewIncome = user.permissions.canViewIncome
+    // Plan belongs to the account owner (== the viewer unless they're a team member).
+    const owner = user.accountId === user.id
+      ? user
+      : await prisma.user.findUnique({ where: { id: user.accountId } })
+    plan = owner?.plan ?? 'free'
+    const canViewIncome = user.permissions.canViewIncome
 
-      const [goals, income, aiUsage, contentPosts, snapshots] = await Promise.all([
-        prisma.goal.findMany({
-          where: { userId: user.accountId, status: 'active' },
-          orderBy: { priority: 'asc' },
-          take: 100,
-        }),
-        // Team members without canViewIncome never get the owner's income read.
-        canViewIncome
-          ? prisma.income.findMany({
-              where: { userId: user.accountId },
-              orderBy: { date: 'desc' },
-              take: 60,
-            })
-          : Promise.resolve([] as Awaited<ReturnType<typeof prisma.income.findMany>>),
-        prisma.aiUsage.findMany({
-          where: { userId: user.accountId },
-          orderBy: { createdAt: 'desc' },
-          take: 100,
-        }),
-        prisma.contentPost.findMany({
-          where: { userId: user.accountId, status: 'published' },
-          orderBy: { publishedAt: 'desc' },
-          take: 10,
-        }),
-        prisma.socialSnapshot.findMany({
-          where: { userId: user.accountId },
-          orderBy: { date: 'desc' },
-          take: 14,
-        }),
-      ])
+    const [goals, income, aiUsage, contentPosts, snapshots] = await Promise.all([
+      prisma.goal.findMany({
+        where: { userId: user.accountId, status: 'active' },
+        orderBy: { priority: 'asc' },
+        take: 100,
+      }),
+      // Team members without canViewIncome never get the owner's income read.
+      canViewIncome
+        ? prisma.income.findMany({
+            where: { userId: user.accountId },
+            orderBy: { date: 'desc' },
+            take: 60,
+          })
+        : Promise.resolve([] as Awaited<ReturnType<typeof prisma.income.findMany>>),
+      prisma.aiUsage.findMany({
+        where: { userId: user.accountId },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      prisma.contentPost.findMany({
+        where: { userId: user.accountId, status: 'published' },
+        orderBy: { publishedAt: 'desc' },
+        take: 10,
+      }),
+      prisma.socialSnapshot.findMany({
+        where: { userId: user.accountId },
+        orderBy: { date: 'desc' },
+        take: 14,
+      }),
+    ])
 
-      props = {
-        goals: goals.map(g => ({
-          title: g.title,
-          currentValue: Number(g.currentValue),
-          targetValue: Number(g.targetValue),
-          unit: g.unit,
-          platform: g.platform,
-        })),
-        income: income.map(i => ({
-          amount: Number(i.amount),
-          date: i.date.toISOString(),
-          source: i.source,
-          platform: i.platform,
-        })),
-        aiUsage: aiUsage.map(a => ({ createdAt: a.createdAt.toISOString() })),
-        contentPosts: contentPosts.map(p => ({
-          title: p.title,
-          platform: p.platform,
-          type: p.type,
-          publishedAt: p.publishedAt?.toISOString() ?? null,
-        })),
-        snapshots: snapshots.map(s => ({
-          date: s.date.toISOString(),
-          platform: s.platform,
-          followers: s.followers,
-          newFollowers: s.newFollowers,
-          reach: s.reach,
-          impressions: s.impressions,
-          engagement: s.engagement,
-        })),
-      }
+    props = {
+      goals: goals.map(g => ({
+        title: g.title,
+        currentValue: Number(g.currentValue),
+        targetValue: Number(g.targetValue),
+        unit: g.unit,
+        platform: g.platform,
+      })),
+      income: income.map(i => ({
+        amount: Number(i.amount),
+        date: i.date.toISOString(),
+        source: i.source,
+        platform: i.platform,
+      })),
+      aiUsage: aiUsage.map(a => ({ createdAt: a.createdAt.toISOString() })),
+      contentPosts: contentPosts.map(p => ({
+        title: p.title,
+        platform: p.platform,
+        type: p.type,
+        publishedAt: p.publishedAt?.toISOString() ?? null,
+      })),
+      snapshots: snapshots.map(s => ({
+        date: s.date.toISOString(),
+        platform: s.platform,
+        followers: s.followers,
+        newFollowers: s.newFollowers,
+        reach: s.reach,
+        impressions: s.impressions,
+        engagement: s.engagement,
+      })),
     }
   } catch (e) {
     console.error(e)

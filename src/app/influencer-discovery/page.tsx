@@ -7,10 +7,12 @@ export default async function InfluencerDiscoveryPage() {
   let plan = 'free'
   let initialProfiles: any[] = []
 
-  try {
-    const user = await getSessionUser()
-    if (user) plan = user.plan ?? 'free'
+  // getSessionUser() redirects to /login (NEXT_REDIRECT); keep it outside the try/catch
+  // below (fallback for the data query only) or the redirect is swallowed.
+  const user = await getSessionUser()
+  plan = user.plan ?? 'free'
 
+  try {
     initialProfiles = await prisma.influencerProfile.findMany({
       orderBy: [{ verified: 'desc' }, { followers: 'desc' }],
       take: 200,

@@ -7,9 +7,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   try {
     const membership = await prisma.teamMembership.findUnique({
       where:   { id: params.id },
-      include: { owner: { select: { name: true } } },
+      include: { owner: { select: { name: true, active: true } } },
     })
-    if (!membership || membership.status !== 'pending') {
+    // Dueño desactivado = misma respuesta que invitación inexistente (no revelar el motivo).
+    if (!membership || membership.status !== 'pending' || membership.owner.active !== true) {
       return NextResponse.json({ error: 'Invitación no válida o ya usada' }, { status: 404 })
     }
     return NextResponse.json({ invitedEmail: membership.invitedEmail, ownerName: membership.owner.name })
@@ -24,8 +25,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 // work on the owner's account (see lib/session.ts resolveAccount()).
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const membership = await prisma.teamMembership.findUnique({ where: { id: params.id } })
-    if (!membership || membership.status !== 'pending') {
+    const membership = await prisma.teamMembership.findUnique({
+      where:   { id: params.id },
+      include: { owner: { select: { active: true } } },
+    })
+    // Dueño desactivado = misma respuesta que invitación inexistente (no revelar el motivo).
+    if (!membership || membership.status !== 'pending' || membership.owner.active !== true) {
       return NextResponse.json({ error: 'Invitación no válida o ya usada' }, { status: 404 })
     }
 

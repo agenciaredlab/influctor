@@ -14,7 +14,7 @@ vi.mock('@/lib/prisma', () => ({
 
 import { prisma } from '@/lib/prisma'
 
-const PENDING = { id: 'tm_1', status: 'pending', invitedEmail: 'joins@x.com', owner: { name: 'Ana Dueña' } }
+const PENDING = { id: 'tm_1', status: 'pending', invitedEmail: 'joins@x.com', owner: { name: 'Ana Dueña', active: true } }
 
 function acceptReq(body: unknown) {
   return new NextRequest('http://localhost/api/team/accept/tm_1', {
@@ -40,6 +40,13 @@ describe('GET /api/team/accept/[id]', () => {
     expect(res.status).toBe(404)
   })
 
+  it('returns the same 404 as an invalid invite when the owner is deactivated', async () => {
+    vi.mocked(prisma.teamMembership.findUnique).mockResolvedValue({ ...PENDING, owner: { name: 'Ana Dueña', active: false } } as any)
+    const res = await GET(new NextRequest('http://localhost/x'), { params: { id: 'tm_1' } })
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'Invitación no válida o ya usada' })
+  })
+
   it('returns the invited email and owner name for a pending invite', async () => {
     vi.mocked(prisma.teamMembership.findUnique).mockResolvedValue(PENDING as any)
     const res = await GET(new NextRequest('http://localhost/x'), { params: { id: 'tm_1' } })
@@ -60,6 +67,15 @@ describe('POST /api/team/accept/[id]', () => {
     vi.mocked(prisma.teamMembership.findUnique).mockResolvedValue({ ...PENDING, status: 'revoked' } as any)
     const res = await POST(acceptReq({ name: 'X', password: 'password123' }), { params: { id: 'tm_1' } })
     expect(res.status).toBe(404)
+  })
+
+  it('returns the same 404 and creates nothing when the owner is deactivated', async () => {
+    vi.mocked(prisma.teamMembership.findUnique).mockResolvedValue({ ...PENDING, owner: { active: false } } as any)
+    const res = await POST(acceptReq({ name: 'X', password: 'password123' }), { params: { id: 'tm_1' } })
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'Invitación no válida o ya usada' })
+    expect(prisma.user.create).not.toHaveBeenCalled()
+    expect(prisma.teamMembership.update).not.toHaveBeenCalled()
   })
 
   it('returns 400 when the password is too short', async () => {
