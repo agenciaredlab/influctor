@@ -75,7 +75,8 @@ propio ciclo:
   carga `SocialAccount` con `include` aunque no lo pasa al cliente.
 - [ ] **Fase 4 — Guardrails.** Confirmar (tests + prueba en vivo) que ningún permiso permite a un
   miembro cambiar de plan, facturar, eliminar la cuenta, ni invitar/quitar gente — eso es siempre
-  exclusivo del dueño (`ownerId`/`isAdmin`), nunca un flag delegable. Estado: **pendiente**.
+  exclusivo del dueño (`ownerId`/`isAdmin`), nunca un flag delegable. Estado: **en progreso
+  (2026-10-22)**.
   Hallazgos concretos de Fase 3 para arrancar acá:
   (1) `POST /api/stripe/checkout` y `portal` no bloquean a un miembro (`accountId !== id`): con
   Stripe real, un miembro iniciaría un checkout sobre su propio `User`. No es una fuga hacia el
